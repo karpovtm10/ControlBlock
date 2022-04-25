@@ -3096,7 +3096,7 @@ void Error_Handler(void)
 	while (1)
 	{
 		HAL_GPIO_TogglePin(LED4_GPIO_Port, LED4_Pin);
-		HAL_Delay(100);
+		HAL_Delay(50);
 	}
 	/* USER CODE END Error_Handler_Debug */
 }

@@ -1,0 +1,45 @@
+﻿<?xml version="1.0"?>
+<!-- -->
+<!-- для МК серии stm32f042 - размер страницы 1024,  -->
+<!-- для серии stm32f072 - размер страницы 2048 -->
+<!-- -->
+<!-- Для добавления нового устройства внутрь тега <Device>...</Device>  -->
+<!-- последовательно поместить: -->
+<!-- <Name>...</Name> - Имя устройства -->
+<!-- <CanId>...</CanId> - ID кан-шины в hex формата 0хFFF -->
+<!-- <PageSize>...</PageSize> - Размерность страницы dec 1024 или 2048 -->
+<!-- -->
+<!-- Если в содержании файла будет какая-то ошибка, то в программу загрузится только первичный список данных -->
+<!-- -->
+<ArrayOfDevice xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Device>
+    <Name>BLE модем</Name>
+    <CanId>0x700</CanId>
+    <PageSize>1024</PageSize>
+  </Device>
+  <Device>
+    <Name>Датчик угла на раме</Name>
+    <CanId>0x701</CanId>
+    <PageSize>1024</PageSize>
+  </Device>
+  <Device>
+    <Name>Датчик угла на стреле</Name>
+    <CanId>0x702</CanId>
+    <PageSize>1024</PageSize>
+  </Device>
+  <Device>
+    <Name>Датчик угла на отвале</Name>
+    <CanId>0x703</CanId>
+    <PageSize>1024</PageSize>
+  </Device>
+  <Device>
+    <Name>БКУ</Name>
+    <CanId>0x704</CanId>
+    <PageSize>2048</PageSize>
+  </Device>
+  <Device>
+    <Name>Блок управления (Master)</Name>
+    <CanId>0x705</CanId>
+    <PageSize>2048</PageSize>
+  </Device>
+</ArrayOfDevice>

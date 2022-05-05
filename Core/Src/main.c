@@ -1909,7 +1909,10 @@ u8 GET_DATA_PARCEL(char *xBuf, u8 *result_mas1)
 int main(void)
 {
 	/* USER CODE BEGIN 1 */
-
+	
+	/* Смещение таблицы векторов */
+	SCB->VTOR = FLASH_BASE | 0x00004000U;
+	
 	/* USER CODE END 1 */
 
 	/* MCU Configuration--------------------------------------------------------*/
@@ -1936,7 +1939,7 @@ int main(void)
 	MX_UART4_Init();
 	MX_USART1_UART_Init();
 	MX_USART2_UART_Init();
-//	MX_USART3_UART_Init();
+	MX_USART3_UART_Init();
 	MX_DMA_Init();
 	MX_USART6_UART_Init();
 	/* USER CODE BEGIN 2 */

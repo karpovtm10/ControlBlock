@@ -42,9 +42,4 @@
     <CanId>0x705</CanId>
     <PageSize>2048</PageSize>
   </Device>
-  <Device>
-    <Name>Блок управления (Slave)</Name>
-    <CanId>0x706</CanId>
-    <PageSize>2048</PageSize>
-  </Device>
 </ArrayOfDevice>

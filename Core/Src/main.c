@@ -719,12 +719,13 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 			isCanSendingAllowed = 0;
 		}
 			
-//		if (xTaskGetTickCount() - can_send_timer > 2000)
-		if (queue_cnt == 2)
+		if (xTaskGetTickCount() - can_send_timer > 1000)
 		{
+//		if (queue_cnt == 2)
+//		{
 			can_send_timer = xTaskGetTickCount();
 			xQueueSendFromISR(SendQueueHandle, &msg.data, &xHigherPriorityTaskWoken);
-			queue_cnt++;
+//			queue_cnt++;
 			
 		}
          
@@ -873,6 +874,7 @@ void HAL_UARTExGPS_ReceiveToIdle_IT(void)
 u8 	pack_length = 0;
 u8 dollar_flag = 0;
 u8 size_inc = 0;
+time_t usart_time = 0;
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
 	if (huart == UART_COM2_GPS_HANDLE)
@@ -884,6 +886,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 	
 	if (huart == UART_RADIO_HANDLE)
 	{
+		usart_time = xTaskGetTickCount();
 		size_inc += Size;
 			if (SERVER_BUF_CNT == 2)
 		{
@@ -932,12 +935,16 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 				
 				if (SERVER_BUF_CNT == pack_length + 1) 
 				{
+					
 					incData = 1;
-					parcel_count++;
-					dollar_flag = 0;
-					pack_length = 0;
+			parcel_count++;
+			pack_length = 0;
+			dollar_flag = 0;
+					
 				}
 			}
+			
+			
 			
 			if (virtual_bt)
 			CDC_Transmit_FS((u8 *)RADIO_DATA1, Size);
@@ -1801,8 +1808,8 @@ void getting_data(void)
 	clear_RXBuffer(parsed_buffer, 255);
 	while(parcel_count)
 	{
+//		GET_DATA_PARCEL(RECEIVE_SERVER_BUF, parsed_buffer);
 		GET_DATA_PARCEL(RECEIVE_SERVER_BUF, parsed_buffer);
-		
 		
 		confirm = 0;
 		if (parsed_buffer[0] == '$')
@@ -1839,16 +1846,16 @@ void getting_data(void)
 				break;
 			}
 			
-			if (queue_init) queue_cnt = 1;
+//			if (queue_init) queue_cnt = 1;
 			if (confirm) 
 			{
 				GET_CONFIRM_MSG(parsed_buffer, msg.data);
 				xQueueSend(SendQueueHandle, &msg.data, osWaitForever);
 				clear_RXBuffer(parsed_buffer, 255);
 			}
-			else queue_cnt++;
+//			else queue_cnt++;
 			
-			if (queue_cnt == 4) queue_cnt = 0;
+//			if (queue_cnt == 4) queue_cnt = 0;
 		}
 		
 		parcel_count--;
@@ -2734,8 +2741,8 @@ void StartmySysTickTask(void *argument)
 				SLAVE_coord_longitude = 0;
 			}
 			
-			if (queue_cnt != 0)
-				queue_init = 0;
+//			if (queue_cnt != 0)
+//				queue_init = 0;
 			
 						
 			if ((USART1->CR1 & 0x30) != 0x30)
@@ -2773,12 +2780,12 @@ void StartmySysTickTask(void *argument)
 //				HAL_UARTExGSM_ReceiveToIdle_DMA();
 
 //			}
-			D_time_gps_parcel = xTaskGetTickCount() - time_gps_parcel;
-			if (D_time_gps_parcel > 1000) 
-			{
-				HAL_UARTExGPS_ReceiveToIdle_IT();
-				time_gps_parcel = xTaskGetTickCount();
-			}
+//			D_time_gps_parcel = xTaskGetTickCount() - time_gps_parcel;
+//			if (D_time_gps_parcel > 1000) 
+//			{
+//				HAL_UARTExGPS_ReceiveToIdle_IT();
+//				time_gps_parcel = xTaskGetTickCount();
+//			}
 			
 	//		MODE_CONTROL = START_AUTO;
 			if (xTaskGetTickCount() - Application_get_timer < 5000) REMOTE_CONNECT_OK = 1;
@@ -2786,6 +2793,8 @@ void StartmySysTickTask(void *argument)
 			{
 				REMOTE_CONNECT_OK = 0;
 				speed_level = 0;
+//				pack_length = 0;
+//				SERVER_BUF_CNT = 0;
 			}
 			
 			delta_timeout_RC = xTaskGetTickCount() - RC_timer;
@@ -2854,16 +2863,16 @@ void StartmyMobileApplicationTask(void *argument)
 	/* Infinite loop */
 	for(;;)
 	{
-		if (queue_cnt == 0)
-		{
+//		if (queue_cnt == 0)
+//		{
 			SENDING_COORDS();
-			queue_cnt++;			
-		}
+//			queue_cnt++;			
+//		}
 		
-		if (queue_init)
-		osDelay(2000);
-		else
-			osDelay(1);
+//		if (queue_init)
+		osDelay(1000);
+//		else
+//			osDelay(1);
 		
 	}
 	/* USER CODE END StartmyMobileApplicationTask */
@@ -2900,7 +2909,7 @@ void StartmySendingServerDataTask(void *argument)
 		{
 			if (msg.data[1] == PACK_ID_dozerParams)
 			{
-				while(!SEND_OK) osDelay(1);
+				while(!SEND_OK) osDelay(50);
 				HAL_UART_Transmit_IT(UART_RADIO_HANDLE, global_buf, PACK_LEN_dozerParams * 19);
 				SEND_OK = 0;
 			}
@@ -2908,7 +2917,7 @@ void StartmySendingServerDataTask(void *argument)
 						
 			if (msg.data[1] == PACK_ID_myCoords)
 			{
-				while(!SEND_OK) osDelay(1);
+				while(!SEND_OK) osDelay(50);
 				HAL_UART_Transmit_IT(UART_RADIO_HANDLE, msg.data, PACK_LEN_myCoords);
 //				HAL_UART_Transmit_IT(UART_RADIO_HANDLE, "HELLO\r\n", 7);
 				SEND_OK = 0;
@@ -2916,14 +2925,14 @@ void StartmySendingServerDataTask(void *argument)
 			
 			if (msg.data[1] == PACK_ID_Confirm || msg.data[1] == PACK_ID_Err)
 			{
-				while(!SEND_OK) osDelay(1);
+				while(!SEND_OK) osDelay(50);
 				HAL_UART_Transmit_IT(UART_RADIO_HANDLE, msg.data, PACK_LEN_Confirm);
 				SEND_OK = 0;
 			}
 			
 			if (msg.data[1] == PACK_ID_CompletePoint)
 			{
-				while(!SEND_OK) osDelay(1);
+				while(!SEND_OK) osDelay(50);
 				HAL_UART_Transmit_IT(UART_RADIO_HANDLE, msg.data, PACK_LEN_CompletePoint);
 				SEND_OK = 0;
 			}

@@ -195,7 +195,7 @@ enum List_of_CAN_places place;														// Объявление перечи
 
 time_t can_send_timer;																// Переменная для контроля задержки передачи данных на сервер							
 u8 isCanSendingAllowed = 0;															// Флаг принятой посылки для формирования глобального буфера
-
+char			RADIO_DATA1						[30];
 extern u8 										USB_Buf[500];						// Буффер для храниния данных (USB), полученных через виртуальнй СОМ порт
 extern u8 										USB_flag;							// Флаг принятых данных
 extern u32 										USB_len;							// Длинна посылки с (USB)
@@ -209,6 +209,7 @@ u8 												USB_Cplt = 0;						// Флаг завершения переда�
 volatile char	COM1_GPS_DATA					[COM1_GPS_BUF];						// Буффер данных для COM1 порта ГНСС модуля
 char			COM2_GPS_DATA					[GPS_BUF];							// Буффер данных для COM2 порта ГНСС модуля
 char			RADIO_DATA						[RADIO_BUF];						// Буффер данных для Радио
+
 char			RECEIVE_SERVER_BUF				[SERVER_BUF];
 
 u8				CAN_BASKET_LAT					[CAN_BUF];							// Корзина для широты в CAN
@@ -849,12 +850,12 @@ void clear_RXBuffer(u8 *RX_BUFER, u16 size)           				// Функция оч
 
 void HAL_UARTExDebug_ReceiveToIdle_IT(void)
 {
-	HAL_UARTEx_ReceiveToIdle_IT(UART_DEBUG_HANDLE, (u8 *)RADIO_DATA, RADIO_BUF);
+	HAL_UARTEx_ReceiveToIdle_IT(UART_DEBUG_HANDLE, (u8 *)RADIO_DATA1, 30);
 }
 
 void HAL_UARTExRadio_ReceiveToIdle_IT(void)
 {
-	HAL_UARTEx_ReceiveToIdle_IT(UART_RADIO_HANDLE, (u8 *)RADIO_DATA, RADIO_BUF);
+	HAL_UARTEx_ReceiveToIdle_IT(UART_RADIO_HANDLE, (u8 *)RADIO_DATA1, 30);
 }
 
 void HAL_UARTExGSM_ReceiveToIdle_DMA(void)
@@ -870,7 +871,8 @@ void HAL_UARTExGPS_ReceiveToIdle_IT(void)
 }
 
 u8 	pack_length = 0;
-
+u8 dollar_flag = 0;
+u8 size_inc = 0;
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
 	if (huart == UART_COM2_GPS_HANDLE)
@@ -882,46 +884,70 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 	
 	if (huart == UART_RADIO_HANDLE)
 	{
+		size_inc += Size;
+			if (SERVER_BUF_CNT == 2)
+		{
+			__nop();
+		}
 		if (virtual_surv)
 		{
-			HAL_UART_Transmit_IT(UART_COM1_GPS_HANDLE, (u8 *)RADIO_DATA,Size);
+			HAL_UART_Transmit_IT(UART_COM1_GPS_HANDLE, (u8 *)RADIO_DATA1,Size);
 		}
 		else
 		{
-			parcel_count++;
-			switch (RADIO_DATA[1])
-			{
-				case (u8)PACK_ID_tNum: pack_length = PACK_LEN_tNum;
-				break;
-				case (u8)PACK_ID_Coords: pack_length = PACK_LEN_Coords;
-				break;
-				case (u8)PACK_ID_Mode: pack_length = PACK_LEN_Mode;
-				break;
-				case (u8)PACK_ID_RC: pack_length = PACK_LEN_RC;
-				break;
-				case (u8)PACK_ID_Err: pack_length = PACK_LEN_Err;
-				break;
-				case (u8)PACK_ID_ALIVE: pack_length = PACK_LEN_ALIVE;
-				break;
+			if (RADIO_DATA1[0] == '$') dollar_flag = 1;
 			
+			if (dollar_flag)
+			{
+				if (pack_length == 0)
+				{
+					switch (RADIO_DATA1[1])
+					{
+						case (u8)PACK_ID_tNum: pack_length = PACK_LEN_tNum;
+						break;
+						case (u8)PACK_ID_Coords: pack_length = PACK_LEN_Coords;
+						break;
+						case (u8)PACK_ID_Mode: pack_length = PACK_LEN_Mode;
+						break;
+						case (u8)PACK_ID_RC: pack_length = PACK_LEN_RC;
+						break;
+						case (u8)PACK_ID_Err: pack_length = PACK_LEN_Err;
+						break;
+						case (u8)PACK_ID_Confirm: pack_length = PACK_LEN_ALIVE;
+						break;			
+						
+	//					default: pack_length = 0;
+					}
+				}
+				if (pack_length == 0)
+				{					
+					dollar_flag = 0;
+					return;
+				}
 				
-				default: pack_length = 0;
-			}
-			
-			for(u8 i = 0; i < pack_length; i++)
-			{
-				RECEIVE_SERVER_BUF[SERVER_BUF_CNT++] = RADIO_DATA[i];
+				for(u8 i = 0; i < Size; i++)
+				{
+					RECEIVE_SERVER_BUF[SERVER_BUF_CNT++] = RADIO_DATA1[i];
+				}
+				
+				if (SERVER_BUF_CNT == pack_length + 1) 
+				{
+					incData = 1;
+					parcel_count++;
+					dollar_flag = 0;
+					pack_length = 0;
+				}
 			}
 			
 			if (virtual_bt)
-			CDC_Transmit_FS((u8 *)RADIO_DATA, Size);
+			CDC_Transmit_FS((u8 *)RADIO_DATA1, Size);
 			
-			if (RADIO_DATA[17] != 0)
+			if (RADIO_DATA1[17] != 0)
 			{
 				__nop();
 			}
 //			if (RADIO_DATA[0] == '$')
-			incData = 1;
+			
 			
 			
 		}
@@ -1775,7 +1801,7 @@ void getting_data(void)
 	clear_RXBuffer(parsed_buffer, 255);
 	while(parcel_count)
 	{
-		GET_DATA_PARCEL(RADIO_DATA, parsed_buffer);
+		GET_DATA_PARCEL(RECEIVE_SERVER_BUF, parsed_buffer);
 		
 		
 		confirm = 0;
@@ -1809,10 +1835,11 @@ void getting_data(void)
 				case (u8)PACK_ID_Confirm:		Parse_To_Confirm(parsed_buffer);
 												Application_get_timer = xTaskGetTickCount();
 												confirm = 0;
+//												queue_cnt++;
 				break;
 			}
 			
-
+			if (queue_init) queue_cnt = 1;
 			if (confirm) 
 			{
 				GET_CONFIRM_MSG(parsed_buffer, msg.data);
@@ -1826,7 +1853,7 @@ void getting_data(void)
 		
 		parcel_count--;
 	}
-	clear_RXBuffer((u8 *)RADIO_DATA, RADIO_BUF);
+	clear_RXBuffer((u8 *)RADIO_DATA1, 30);
 	clear_RXBuffer((u8 *)RECEIVE_SERVER_BUF, SERVER_BUF);
 	SERVER_BUF_CNT = 0;
 
@@ -1911,8 +1938,8 @@ int main(void)
 	/* USER CODE BEGIN 1 */
 	
 	/* Смещение таблицы векторов */
-	SCB->VTOR = FLASH_BASE | 0x00004000U;
-	
+//	SCB->VTOR = FLASH_BASE | 0x00004000U;
+	clear_RXBuffer(RADIO_DATA1, 30);
 	/* USER CODE END 1 */
 
 	/* MCU Configuration--------------------------------------------------------*/
@@ -1943,8 +1970,8 @@ int main(void)
 	MX_DMA_Init();
 	MX_USART6_UART_Init();
 	/* USER CODE BEGIN 2 */
-	HAL_UARTExGSM_ReceiveToIdle_DMA();
-	HAL_UARTExGPS_ReceiveToIdle_IT();
+//	HAL_UARTExGSM_ReceiveToIdle_DMA();
+//	HAL_UARTExGPS_ReceiveToIdle_IT();
 	HAL_UARTExRadio_ReceiveToIdle_IT();
 
 	/* USER CODE END 2 */
@@ -2710,30 +2737,25 @@ void StartmySysTickTask(void *argument)
 			if (queue_cnt != 0)
 				queue_init = 0;
 			
-			if (__HAL_UART_GET_FLAG(&huart1, UART_FLAG_ORE) != RESET)
-			{
-				__HAL_UART_CLEAR_OREFLAG(&huart1);
-				huart1.ErrorCode = 0;
-			}
 						
 			if ((USART1->CR1 & 0x30) != 0x30)
 			{
 				HAL_UARTExRadio_ReceiveToIdle_IT();
 			}
-			if (__HAL_UART_GET_FLAG(UART_COM2_GPS_HANDLE, UART_FLAG_ORE) != RESET)
-			{
-				__HAL_UART_CLEAR_OREFLAG(UART_COM2_GPS_HANDLE);
-				huart2.ErrorCode = 0;
+//			if (__HAL_UART_GET_FLAG(UART_COM2_GPS_HANDLE, UART_FLAG_ORE) != RESET)
+//			{
+//				__HAL_UART_CLEAR_OREFLAG(UART_COM2_GPS_HANDLE);
+//				huart2.ErrorCode = 0;
 
-				HAL_UARTExGPS_ReceiveToIdle_IT();
-			}
-			if (__HAL_UART_GET_FLAG(UART_DEBUG_HANDLE, UART_FLAG_ORE) != RESET)
-			{
-				__HAL_UART_CLEAR_OREFLAG(UART_DEBUG_HANDLE);
-				huart4.ErrorCode = 0;
-				
-				HAL_UARTExDebug_ReceiveToIdle_IT();
-			}
+//				HAL_UARTExGPS_ReceiveToIdle_IT();
+//			}
+//			if (__HAL_UART_GET_FLAG(UART_DEBUG_HANDLE, UART_FLAG_ORE) != RESET)
+//			{
+//				__HAL_UART_CLEAR_OREFLAG(UART_DEBUG_HANDLE);
+//				huart4.ErrorCode = 0;
+//				
+//				HAL_UARTExDebug_ReceiveToIdle_IT();
+//			}
 			
 			if (__HAL_UART_GET_FLAG(UART_RADIO_HANDLE, UART_FLAG_ORE) != RESET)
 			{
@@ -2743,14 +2765,14 @@ void StartmySysTickTask(void *argument)
 				HAL_UARTExRadio_ReceiveToIdle_IT();
 			}
 			
-			if (__HAL_UART_GET_FLAG(UART_COM1_GPS_HANDLE, UART_FLAG_ORE) != RESET)
-			{
-				__HAL_UART_CLEAR_OREFLAG(UART_COM1_GPS_HANDLE);
-				huart6.ErrorCode = 0;
-				
-				HAL_UARTExGSM_ReceiveToIdle_DMA();
+//			if (__HAL_UART_GET_FLAG(UART_COM1_GPS_HANDLE, UART_FLAG_ORE) != RESET)
+//			{
+//				__HAL_UART_CLEAR_OREFLAG(UART_COM1_GPS_HANDLE);
+//				huart6.ErrorCode = 0;
+//				
+//				HAL_UARTExGSM_ReceiveToIdle_DMA();
 
-			}
+//			}
 			D_time_gps_parcel = xTaskGetTickCount() - time_gps_parcel;
 			if (D_time_gps_parcel > 1000) 
 			{
@@ -2835,7 +2857,7 @@ void StartmyMobileApplicationTask(void *argument)
 		if (queue_cnt == 0)
 		{
 			SENDING_COORDS();
-			if (!queue_init) queue_cnt++;			
+			queue_cnt++;			
 		}
 		
 		if (queue_init)

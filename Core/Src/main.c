@@ -719,15 +719,15 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 			isCanSendingAllowed = 0;
 		}
 			
-		if (xTaskGetTickCount() - can_send_timer > 1000)
-		{
-//		if (queue_cnt == 2)
+//		if (xTaskGetTickCount() - can_send_timer > 1000)
 //		{
-			can_send_timer = xTaskGetTickCount();
-			xQueueSendFromISR(SendQueueHandle, &msg.data, &xHigherPriorityTaskWoken);
-//			queue_cnt++;
-			
-		}
+////		if (queue_cnt == 2)
+////		{
+//			can_send_timer = xTaskGetTickCount();
+//			xQueueSendFromISR(SendQueueHandle, &msg.data, &xHigherPriorityTaskWoken);
+////			queue_cnt++;
+//			
+//		}
          
     }
 	
@@ -917,7 +917,9 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 						case (u8)PACK_ID_Err: pack_length = PACK_LEN_Err;
 						break;
 						case (u8)PACK_ID_Confirm: pack_length = PACK_LEN_ALIVE;
-						break;			
+						break;	
+						case (u8)PACK_ID_Request: pack_length = PACK_LEN_Request;
+						break;						
 						
 	//					default: pack_length = 0;
 					}
@@ -933,7 +935,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 					RECEIVE_SERVER_BUF[SERVER_BUF_CNT++] = RADIO_DATA1[i];
 				}
 				
-				if (SERVER_BUF_CNT == pack_length + 1) 
+				if (SERVER_BUF_CNT == pack_length) 
 				{
 					
 					incData = 1;
@@ -980,6 +982,13 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 double myLat = 55.216422;
 double myLon = 61.441115;
 u8 rec_m = 0;
+void SENDING_CAN(void)
+{
+	QUEUE_t msg;
+	msg.data[1] = PACK_ID_dozerParams;
+	xQueueSend(SendQueueHandle, &msg.data, osWaitForever);
+}
+
 void SENDING_COORDS(void)
 {
 	QUEUE_t msg;
@@ -1840,9 +1849,21 @@ void getting_data(void)
 				break;
 												
 				case (u8)PACK_ID_Confirm:		Parse_To_Confirm(parsed_buffer);
-												Application_get_timer = xTaskGetTickCount();
+												
 												confirm = 0;
 //												queue_cnt++;
+				break;
+												
+				case (u8)PACK_ID_Request:
+												if (parsed_buffer[3] == PARCEL_ID_Request_Coords)
+												{
+													SENDING_COORDS();
+												}
+												
+												if (parsed_buffer[3] == PARCEL_ID_Request_CAN)
+												{
+													SENDING_CAN();
+												}
 				break;
 			}
 			
@@ -1853,6 +1874,7 @@ void getting_data(void)
 				xQueueSend(SendQueueHandle, &msg.data, osWaitForever);
 				clear_RXBuffer(parsed_buffer, 255);
 			}
+			Application_get_timer = xTaskGetTickCount();
 //			else queue_cnt++;
 			
 //			if (queue_cnt == 4) queue_cnt = 0;
@@ -1905,6 +1927,8 @@ u8 GET_DATA_PARCEL(char *xBuf, u8 *result_mas1)
 		case (u8)PACK_ID_Err: pack_length1 = PACK_LEN_Err;
 		break;
 		case (u8)PACK_ID_Confirm: pack_length1 = PACK_LEN_Confirm - 1;
+		break;
+		case (u8)PACK_ID_Request: pack_length1 = PACK_LEN_Request;
 		break;
 	
 		
@@ -2865,7 +2889,7 @@ void StartmyMobileApplicationTask(void *argument)
 	{
 //		if (queue_cnt == 0)
 //		{
-			SENDING_COORDS();
+//			SENDING_COORDS();
 //			queue_cnt++;			
 //		}
 		

@@ -134,6 +134,7 @@ void Error_Handler(void);
 #define PACK_ID_ALIVE							0xA1
 #define PACK_ID_Err								0xFF
 #define PACK_ID_Confirm							0xFE
+#define PACK_ID_Request							0x07
 
 #define PACK_ID_myCoords						0x12
 #define PACK_ID_dozerParams						0xA0
@@ -149,6 +150,7 @@ void Error_Handler(void);
 #define PACK_LEN_dozerParams					13
 #define PACK_LEN_CompletePoint					4
 #define PACK_LEN_ALIVE							5
+#define PACK_LEN_Request						5
 
 #define PARCEL_ID_tNumSave						0x01
 #define PARCEL_ID_tNumCoord						0x02
@@ -158,6 +160,8 @@ void Error_Handler(void);
 #define PARCEL_ID_RC							0x00
 #define PARCEL_ID_Err							0xFF
 #define PARCEL_ID_myCoord						0x01
+#define PARCEL_ID_Request_Coords				0x12
+#define PARCEL_ID_Request_CAN					0xA0
 
 #define CAN_Tx_Modem_201_ID						0x0201
 #define CAN_Tx_Modem_205_ID						0x0205

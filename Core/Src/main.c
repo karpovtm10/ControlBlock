@@ -733,7 +733,7 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 	
 	if(HAL_CAN_GetRxMessage(&hcan2, CAN_RX_FIFO0, &CAN2_RxHeader, CAN2_RxData) == HAL_OK)
     {
-         __nop();
+//         HAL_CAN_AddTxMessage(&hcan1, &CAN2_RxHeader, CAN2_RxData, &CAN2_TxMailbox);
     }
 }
 
@@ -927,6 +927,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 				if (pack_length == 0)
 				{					
 					dollar_flag = 0;
+					SERVER_BUF_CNT = 0;
 					return;
 				}
 				
@@ -935,14 +936,20 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 					RECEIVE_SERVER_BUF[SERVER_BUF_CNT++] = RADIO_DATA1[i];
 				}
 				
-				if (SERVER_BUF_CNT == pack_length) 
+				if (SERVER_BUF_CNT == pack_length + 1) 
 				{
-					
 					incData = 1;
-			parcel_count++;
-			pack_length = 0;
-			dollar_flag = 0;
+					parcel_count++;
+					pack_length = 0;
+					dollar_flag = 0;
 					
+				}
+				
+				if (SERVER_BUF_CNT > pack_length + 1)
+				{
+					pack_length = 0;
+					dollar_flag = 0;
+					SERVER_BUF_CNT = 0;
 				}
 			}
 			
@@ -1015,7 +1022,7 @@ void SENDING_COORDS(void)
 //	msg.data[14] = char_to_int(&GPSFixData.ReceiverMode);
 //	msg.data[15] = char_to_int(GPSFixData.SatelliteNum);
 	msg.data[15] = rand()%50;
-	msg.data[14] = rec_m;
+	msg.data[14] = 4;
 	msg.data[16] = MODE_CONTROL;
 	msg.data[17] = crc8(&msg.data[1], 16);
 	
@@ -1808,7 +1815,7 @@ void STOP_MOVING(void)
 
 u8 				parsed_buffer					[255];					// Буфер для расшифрованных данных от приложения
 u8 				xls_protocol_buffer				[20];					// Буфер для расшифрования данных согласно протоколоу
-
+u8				received_led = 0;
 void getting_data(void)
 {
 	QUEUE_t msg;
@@ -1875,6 +1882,7 @@ void getting_data(void)
 				clear_RXBuffer(parsed_buffer, 255);
 			}
 			Application_get_timer = xTaskGetTickCount();
+			received_led = 1;
 //			else queue_cnt++;
 			
 //			if (queue_cnt == 4) queue_cnt = 0;
@@ -1926,7 +1934,7 @@ u8 GET_DATA_PARCEL(char *xBuf, u8 *result_mas1)
 		break;
 		case (u8)PACK_ID_Err: pack_length1 = PACK_LEN_Err;
 		break;
-		case (u8)PACK_ID_Confirm: pack_length1 = PACK_LEN_Confirm - 1;
+		case (u8)PACK_ID_Confirm: pack_length1 = PACK_LEN_ALIVE;
 		break;
 		case (u8)PACK_ID_Request: pack_length1 = PACK_LEN_Request;
 		break;
@@ -2630,22 +2638,17 @@ void StartLedTask(void *argument)
 		}
 		else led1_off_timer = xTaskGetTickCount();
 		
-		if (REMOTE_CONNECT_OK)
+		if (received_led)
 		{
-			if (xTaskGetTickCount() - led0_on_timer > led0_blink_time)
-			{
+			
 				HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET);
-				if (xTaskGetTickCount() - led0_off_timer > led0_blofk_time)
+				if (xTaskGetTickCount() - led0_off_timer > 50)
 				{
 					HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_RESET);
-					led0_blink_time = rand()%400;
-					led0_blofk_time = rand()%100;
-					led0_on_timer = xTaskGetTickCount();
+					received_led = 0;
 				}
-			}
-			else led0_off_timer = xTaskGetTickCount();
 		}
-		else HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_RESET);
+		else led0_off_timer = xTaskGetTickCount();
 		
 		osDelay(10);
 
@@ -3097,7 +3100,7 @@ void StartUsartTask(void *argument)
 				USB_Cplt = 0;
 				USB_cnt = 0;
 			}
-			if (USB_Buf[0] == '/') MODE_CONTROL = IDLE_MODE;
+			if (USB_Buf[0] == '/') next = 1;
 			
 			
 			USB_flag = 0;

@@ -150,7 +150,7 @@ void Error_Handler(void);
 #define PACK_LEN_dozerParams					13
 #define PACK_LEN_CompletePoint					4
 #define PACK_LEN_ALIVE							5
-#define PACK_LEN_Request						5
+#define PACK_LEN_Request						4
 
 #define PARCEL_ID_tNumSave						0x01
 #define PARCEL_ID_tNumCoord						0x02

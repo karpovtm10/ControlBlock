@@ -313,8 +313,8 @@ void gsm_at_parse (char *result, volatile char *GSM_TEMP, char *left_mask, char 
 void clear_RXBuffer(u8 *RX_BUFER, u16 size);
 void HAL_UARTExDebug_ReceiveToIdle_IT(void);
 void HAL_UARTExRadio_ReceiveToIdle_IT(void);
-void HAL_UARTExGSM_ReceiveToIdle_DMA(void);
-void HAL_UARTExGPS_ReceiveToIdle_IT(void);
+void HAL_UARTExCOM1_GPS_ReceiveToIdle_DMA(void);
+void HAL_UARTExCOM2_GPS_ReceiveToIdle_IT(void);
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size);
 void SENDING_COORDS(void);
 void Parse_To_RC_Command(u8 *ArrayData);
@@ -442,6 +442,15 @@ void HAL_CAN_ErrorCallback(CAN_HandleTypeDef *hcan)
 	
 }
 
+void ReTransmitPacket(CAN_HandleTypeDef *hcan, CAN_RxHeaderTypeDef Header, u8 *data)
+{
+	if (Header.IDE == CAN_ID_STD)
+	CAN_Send(hcan, data, Header.StdId);
+	
+	if (Header.IDE == CAN_ID_EXT)
+	CAN_Send(hcan, data, Header.ExtId);
+}
+
 u8 queue_1 = 0, queue_2 = 1, queue_init = 1;
 u8 queue_cnt = 0;
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
@@ -449,7 +458,7 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
     if(HAL_CAN_GetRxMessage(&hcan1, CAN_RX_FIFO0, &CAN1_RxHeader, CAN1_RxData) == HAL_OK)
     {
 		QUEUE_t msg;
-		BaseType_t xHigherPriorityTaskWoken;
+		//BaseType_t xHigherPriorityTaskWoken;
 		u16 IDx = 0;
 		
 		msg.data[0] = '$';
@@ -461,38 +470,7 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 			msg.data[i + 4] = CAN1_RxData[i];
 		}
 	
-		if (CAN1_RxHeader.StdId == CAN_LAT1_EXT_ID)
-		{
-			timer_CAN_coords = xTaskGetTickCount();
-			SLAVE_coord_latitude = 0;
-			u64_lat1 = 0;
-			lat1_multiplier = 100000000;
-			
-			for(u8 i = 0; i <= 4; i++)
-			{
-				u64_lat1 = u64_lat1 + ((u64)CAN1_RxData[i] << (i * 8));
-			}
-						
-			SLAVE_coord_latitude = (double)u64_lat1 / lat1_multiplier - 90;
-			GPSFixData.ReceiverMode_2 = CAN1_RxData[5];
-			GPSFixData.SatelliteNum_2 = CAN1_RxData[6];
-//			NTRIP_CONNECT_OK_2 = CAN1_RxData[7];
-		}
 		
-		if (CAN1_RxHeader.StdId == CAN_LON1_EXT_ID)
-		{	
-			timer_CAN_coords = xTaskGetTickCount();			
-			SLAVE_coord_longitude = 0;
-			u64_lon1 = 0;
-			lon1_multiplier = 100000000;
-			
-			for(u8 i = 0; i <= 4; i++)
-			{
-				u64_lon1 = u64_lon1 + ((u64)CAN1_RxData[i] << (i * 8));
-			}
-			
-			SLAVE_coord_longitude = (double)u64_lon1 / lon1_multiplier - 180;	
-		}
 		IDx = (CAN1_RxHeader.ExtId >> 8) & 0xFFFF;
 		
 		switch(IDx)
@@ -733,7 +711,43 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 	
 	if(HAL_CAN_GetRxMessage(&hcan2, CAN_RX_FIFO0, &CAN2_RxHeader, CAN2_RxData) == HAL_OK)
     {
-//         HAL_CAN_AddTxMessage(&hcan1, &CAN2_RxHeader, CAN2_RxData, &CAN2_TxMailbox);
+		if (CAN2_RxHeader.StdId == CAN_LAT1_EXT_ID)
+		{
+			timer_CAN_coords = xTaskGetTickCount();
+			SLAVE_coord_latitude = 0;
+			u64_lat1 = 0;
+			lat1_multiplier = 100000000;
+			
+			for(u8 i = 0; i <= 4; i++)
+			{
+				u64_lat1 = u64_lat1 + ((u64)CAN2_RxData[i] << (i * 8));
+			}
+						
+			SLAVE_coord_latitude = (double)u64_lat1 / lat1_multiplier - 90;
+			GPSFixData.ReceiverMode_2 = CAN2_RxData[5];
+			GPSFixData.SatelliteNum_2 = CAN2_RxData[6];
+//			NTRIP_CONNECT_OK_2 = CAN2_RxData[7];
+		}	
+		else if (CAN2_RxHeader.StdId == CAN_LON1_EXT_ID)
+		{	
+			timer_CAN_coords = xTaskGetTickCount();			
+			SLAVE_coord_longitude = 0;
+			u64_lon1 = 0;
+			lon1_multiplier = 100000000;
+			
+			for(u8 i = 0; i <= 4; i++)
+			{
+				u64_lon1 = u64_lon1 + ((u64)CAN2_RxData[i] << (i * 8));
+			}
+			
+			SLAVE_coord_longitude = (double)u64_lon1 / lon1_multiplier - 180;	
+		}
+		else if (CAN2_RxHeader.StdId == CAN_ALT_ROVER_ID)
+		{
+			
+		}
+		else
+        ReTransmitPacket(&hcan1, CAN2_RxHeader, CAN2_RxData);
     }
 }
 
@@ -859,13 +873,13 @@ void HAL_UARTExRadio_ReceiveToIdle_IT(void)
 	HAL_UARTEx_ReceiveToIdle_IT(UART_RADIO_HANDLE, (u8 *)RADIO_DATA1, 30);
 }
 
-void HAL_UARTExGSM_ReceiveToIdle_DMA(void)
+void HAL_UARTExCOM1_GPS_ReceiveToIdle_DMA(void)
 {
 	HAL_UARTEx_ReceiveToIdle_DMA(UART_COM1_GPS_HANDLE, (u8 *)COM1_GPS_DATA, COM1_GPS_BUF);
 	__HAL_DMA_DISABLE_IT(&hdma_usart6_rx, DMA_IT_HT);
 }
 
-void HAL_UARTExGPS_ReceiveToIdle_IT(void)
+void HAL_UARTExCOM2_GPS_ReceiveToIdle_IT(void)
 {
 	HAL_UARTEx_ReceiveToIdle_IT(UART_COM2_GPS_HANDLE, (u8 *)COM2_GPS_DATA, GPS_BUF);
 	//__HAL_DMA_DISABLE_IT(&hdma_usart2_rx, DMA_IT_HT);
@@ -881,7 +895,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 	{
 		GPGGA = 1;
 		time_gps_parcel = xTaskGetTickCount();
-		HAL_UARTExGPS_ReceiveToIdle_IT();
+		HAL_UARTExCOM2_GPS_ReceiveToIdle_IT();
 	}
 	
 	if (huart == UART_RADIO_HANDLE)
@@ -982,7 +996,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 			HAL_UART_Transmit_IT(UART_RADIO_HANDLE, (u8 *)COM1_GPS_DATA,Size);
 		}
 		
-		HAL_UARTExGSM_ReceiveToIdle_DMA();
+		HAL_UARTExCOM1_GPS_ReceiveToIdle_DMA();
 	}
 	HAL_UARTExRadio_ReceiveToIdle_IT();
 }
@@ -1580,12 +1594,12 @@ void run_gps_drive(void)  // Функция работы автоматичес�
 	My_lat_i = MASTER_coord_latitude * 10000000;
 	My_lon_i = MASTER_coord_longitude * 10000000;
 	
-	TARGET_coord_latitude = 50;
-	TARGET_coord_longitude = 60;
-	SLAVE_coord_latitude = 51;
-	SLAVE_coord_longitude = 61;
-	MASTER_coord_latitude = 52;
-	MASTER_coord_longitude = 62;
+//	TARGET_coord_latitude = 50;
+//	TARGET_coord_longitude = 60;
+//	SLAVE_coord_latitude = 51;
+//	SLAVE_coord_longitude = 61;
+//	MASTER_coord_latitude = 52;
+//	MASTER_coord_longitude = 62;
 
 	if (TARGET_coord_latitude != 0 && TARGET_coord_longitude !=0 &&	MASTER_coord_latitude !=0 && MASTER_coord_longitude !=0 && SLAVE_coord_latitude != 0 && SLAVE_coord_longitude != 0)
 	{
@@ -1978,7 +1992,7 @@ int main(void)
 	
 	/* Смещение таблицы векторов */
 //	SCB->VTOR = FLASH_BASE | 0x00004000U;
-	clear_RXBuffer(RADIO_DATA1, 30);
+	clear_RXBuffer((u8 *)RADIO_DATA1, 30);
 	/* USER CODE END 1 */
 
 	/* MCU Configuration--------------------------------------------------------*/
@@ -2009,8 +2023,8 @@ int main(void)
 	MX_DMA_Init();
 	MX_USART6_UART_Init();
 	/* USER CODE BEGIN 2 */
-//	HAL_UARTExGSM_ReceiveToIdle_DMA();
-//	HAL_UARTExGPS_ReceiveToIdle_IT();
+	HAL_UARTExCOM1_GPS_ReceiveToIdle_DMA();
+	HAL_UARTExCOM2_GPS_ReceiveToIdle_IT();
 	HAL_UARTExRadio_ReceiveToIdle_IT();
 
 	/* USER CODE END 2 */
@@ -2776,13 +2790,14 @@ void StartmySysTickTask(void *argument)
 			{
 				HAL_UARTExRadio_ReceiveToIdle_IT();
 			}
-//			if (__HAL_UART_GET_FLAG(UART_COM2_GPS_HANDLE, UART_FLAG_ORE) != RESET)
-//			{
-//				__HAL_UART_CLEAR_OREFLAG(UART_COM2_GPS_HANDLE);
-//				huart2.ErrorCode = 0;
+			
+			if (__HAL_UART_GET_FLAG(UART_COM2_GPS_HANDLE, UART_FLAG_ORE) != RESET)
+			{
+				__HAL_UART_CLEAR_OREFLAG(UART_COM2_GPS_HANDLE);
+				huart2.ErrorCode = 0;
 
-//				HAL_UARTExGPS_ReceiveToIdle_IT();
-//			}
+				HAL_UARTExCOM2_GPS_ReceiveToIdle_IT();
+			}
 //			if (__HAL_UART_GET_FLAG(UART_DEBUG_HANDLE, UART_FLAG_ORE) != RESET)
 //			{
 //				__HAL_UART_CLEAR_OREFLAG(UART_DEBUG_HANDLE);
@@ -2799,14 +2814,14 @@ void StartmySysTickTask(void *argument)
 				HAL_UARTExRadio_ReceiveToIdle_IT();
 			}
 			
-//			if (__HAL_UART_GET_FLAG(UART_COM1_GPS_HANDLE, UART_FLAG_ORE) != RESET)
-//			{
-//				__HAL_UART_CLEAR_OREFLAG(UART_COM1_GPS_HANDLE);
-//				huart6.ErrorCode = 0;
-//				
-//				HAL_UARTExGSM_ReceiveToIdle_DMA();
+			if (__HAL_UART_GET_FLAG(UART_COM1_GPS_HANDLE, UART_FLAG_ORE) != RESET)
+			{
+				__HAL_UART_CLEAR_OREFLAG(UART_COM1_GPS_HANDLE);
+				huart6.ErrorCode = 0;
+				
+				HAL_UARTExCOM1_GPS_ReceiveToIdle_DMA();
 
-//			}
+			}
 //			D_time_gps_parcel = xTaskGetTickCount() - time_gps_parcel;
 //			if (D_time_gps_parcel > 1000) 
 //			{

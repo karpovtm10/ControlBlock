@@ -118,7 +118,7 @@ void Error_Handler(void);
 #define RAD_TO_DEG								57.29577951308
 
 #define FULL_DRIVE								100
-#define STOP_DRIVE								125
+#define STOP_DRIVE								0
 #define SLOW_DRIVE								50
 
 #define	FULL_DRIVE_CRC							255 - FULL_DRIVE

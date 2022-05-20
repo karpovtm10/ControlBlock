@@ -1015,8 +1015,8 @@ void SENDING_COORDS(void)
 	QUEUE_t msg;
 	//myLat += 0.00001;
 	//myLon += 0.00001;
-	u64 mulLat = (myLat + 90) * pow(10, 8);
-	u64 mulLon = (myLon + 180) * pow(10, 8);
+	u64 mulLat = (MASTER_coord_latitude + 90) * pow(10, 8);
+	u64 mulLon = (MASTER_coord_longitude + 180) * pow(10, 8);
 
 	
 	msg.data[0] = '$';
@@ -1030,13 +1030,11 @@ void SENDING_COORDS(void)
 	{
 		msg.data[i + 7] = mulLon >> (8 * i) & 0xFF;
 	}
-	
+	 
 	msg.data[12] = (u16)roundf(HEADING) & 0xFF;
 	msg.data[13] = (u16)roundf(HEADING) >> 8;
-//	msg.data[14] = char_to_int(&GPSFixData.ReceiverMode);
-//	msg.data[15] = char_to_int(GPSFixData.SatelliteNum);
-	msg.data[15] = rand()%50;
-	msg.data[14] = 4;
+	msg.data[14] = char_to_int_symbol(GPSFixData.ReceiverMode);
+	msg.data[15] = char_to_int(GPSFixData.SatelliteNum);
 	msg.data[16] = MODE_CONTROL;
 	msg.data[17] = crc8(&msg.data[1], 16);
 	
@@ -1379,9 +1377,9 @@ void Parse_To_NMEA(void)
 			flon_fin = ilon + flon_dec;
 			
 			
-			if (flat_fin < 56 && flat_fin > 53)
+//			if (flat_fin < 56 && flat_fin > 53)
 			MASTER_coord_latitude = flat_fin;			// Получаем конечное INT значение широты
-			if (flon_fin < 62 && flon_fin > 60)
+//			if (flon_fin < 62 && flon_fin > 60)
 			MASTER_coord_longitude = flon_fin; 			// Получаем конечное INT значение долготы
 			
 			CAN_BASKET_ALT[0] = 4;
@@ -1539,6 +1537,11 @@ double Azimuth_Calculating (double latitude1, double longitude1, double latitude
 
 void Set_Left_Joystick_poti(i8 joy_y, i8 joy_x)
 {
+	if (joy_y>100) joy_y = 100;
+	if (joy_y<-100) joy_y = -100;
+	if (joy_x>100) joy_x = 100;
+	if (joy_x<-100) joy_x = -100;
+	
 	if (joy_y > 0)
 	{
 		CAN_BASKET_RC_DRIVING[1] = joy_y;
@@ -1830,6 +1833,7 @@ void STOP_MOVING(void)
 u8 				parsed_buffer					[255];					// Буфер для расшифрованных данных от приложения
 u8 				xls_protocol_buffer				[20];					// Буфер для расшифрования данных согласно протоколоу
 u8				received_led = 0;
+u8				transmit_led = 0;
 void getting_data(void)
 {
 	QUEUE_t msg;
@@ -2639,30 +2643,73 @@ void StartLedTask(void *argument)
 	/* Infinite loop */
 	for(;;)
 	{
-		if (xTaskGetTickCount() - led1_on_timer > led1_blink_time)
+//		if (xTaskGetTickCount() - led1_on_timer > led1_blink_time)
+//		{
+//			HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_SET);
+//			if (xTaskGetTickCount() - led1_off_timer > led1_blofk_time)
+//			{
+//				HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);
+//				led1_blink_time = rand()%400;
+//				led1_blofk_time = rand()%100;
+//				led1_on_timer = xTaskGetTickCount();
+//			}
+//		}
+//		else led1_off_timer = xTaskGetTickCount();
+		if (REMOTE_CONNECT_OK)
 		{
-			HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_SET);
-			if (xTaskGetTickCount() - led1_off_timer > led1_blofk_time)
+			if (transmit_led)
 			{
-				HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);
-				led1_blink_time = rand()%400;
-				led1_blofk_time = rand()%100;
-				led1_on_timer = xTaskGetTickCount();
+				HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_SET);
+				if (xTaskGetTickCount() - led1_off_timer > 50)
+				{
+					HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);
+					transmit_led = 0;
+				}
 			}
-		}
-		else led1_off_timer = xTaskGetTickCount();
-		
-		if (received_led)
-		{
+			else led1_off_timer = xTaskGetTickCount();
 			
+			if (received_led)
+			{
+				
+					HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET);
+					if (xTaskGetTickCount() - led0_off_timer > 50)
+					{
+						HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_RESET);
+						received_led = 0;
+					}
+			}
+			else led0_off_timer = xTaskGetTickCount();
+		}
+		else
+		{
+			if (xTaskGetTickCount() - led1_on_timer > led1_blink_time)
+			{
+				HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_SET);
+				if (xTaskGetTickCount() - led1_off_timer > led1_blofk_time)
+				{
+					HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);
+					led1_blink_time = rand()%400;
+					led1_blofk_time = rand()%100;
+					led1_on_timer = xTaskGetTickCount();
+				}
+			}
+		else 
+			led1_off_timer = xTaskGetTickCount();
+		
+			if (xTaskGetTickCount() - led0_on_timer > led0_blink_time)
+			{
 				HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET);
-				if (xTaskGetTickCount() - led0_off_timer > 50)
+				if (xTaskGetTickCount() - led0_off_timer > led0_blofk_time)
 				{
 					HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_RESET);
-					received_led = 0;
+					led0_blink_time = rand()%400;
+					led0_blofk_time = rand()%100;
+					led0_on_timer = xTaskGetTickCount();
 				}
+			}
+			else led0_off_timer = xTaskGetTickCount();
+			
 		}
-		else led0_off_timer = xTaskGetTickCount();
 		
 		osDelay(10);
 
@@ -2932,6 +2979,7 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
           if(huart == UART_RADIO_HANDLE)
           {
              SEND_OK = 1;     // можно установить какой-то флаг, сообщающий об окончании отправки
+			 transmit_led = 1;
           }     
 }
 
@@ -2947,13 +2995,14 @@ void StartmySendingServerDataTask(void *argument)
 	{
 		uxNumberOfItems = uxQueueMessagesWaiting(SendQueueHandle);
 //		if (xQueueReceive(SendQueueHandle, &msg, 0) == pdTRUE && REMOTE_CONNECT_OK)
-			if (xQueueReceive(SendQueueHandle, &msg, 0) == pdTRUE)
+		if (xQueueReceive(SendQueueHandle, &msg, 0) == pdTRUE)
 		{
 			if (msg.data[1] == PACK_ID_dozerParams)
 			{
 				while(!SEND_OK) osDelay(50);
 				HAL_UART_Transmit_IT(UART_RADIO_HANDLE, global_buf, PACK_LEN_dozerParams * 19);
 				SEND_OK = 0;
+				
 			}
 			
 						

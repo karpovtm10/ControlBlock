@@ -2592,8 +2592,7 @@ void StartDefaultTask(void *argument)
 	/* Infinite loop */
 	for(;;)
 	{
-		#ifdef CONTROL_BLOCK
-			if (xTaskGetTickCount() - timer_CAN_SEND >= 100)
+			if (xTaskGetTickCount() - timer_CAN_SEND >= 96)
 			{
 				CAN_Send(&hcan1, CAN_BASKET_RC_DRIVING, 		CAN_Remote_Control_A_ID);
 				CAN_Send(&hcan1, CAN_BASKET_RC_DIR, 			CAN_Remote_Control_B_ID);
@@ -2609,7 +2608,6 @@ void StartDefaultTask(void *argument)
 				RC_BTN_SEND = 0;
 			}
 			
-		#endif
 		osDelay(1);	
 		
 		
@@ -2762,34 +2760,6 @@ void StartGpsTask(void *argument)
 			Parse_To_NMEA();
 			GPGGA = 0;
 			gps_data_timer = xTaskGetTickCount();
-			
-			#ifdef ROVER_BLOCK
-				CAN_BASKET_ALT[0] = 4;
-				CAN_BASKET_ALT[1] = GPS_al & 0xff;
-				CAN_BASKET_ALT[2] = (GPS_al & 0xff00) >> 8;
-				CAN_BASKET_ALT[3] = (GPS_al & 0xff0000) >> 16;
-				CAN_BASKET_ALT[4] = (GPS_al & 0xff000000) >> 24;
-				
-				mulLat = (uint64_t)((flat_fin + 90) * pow(10, 8));
-				mulLon = (uint64_t)((flon_fin + 180) * pow(10, 8));
-			
-				for(uint8_t i = 0; i <= 4; i++)
-				{
-					CAN_BASKET_LAT[i] = (mulLat >> (8 * i)) & 0xFF;
-				}
-				CAN_BASKET_LAT[5] = char_to_int_symbol(GPSFixData.ReceiverMode);
-				CAN_BASKET_LAT[6] = char_to_int(GPSFixData.SatelliteNum);
-				CAN_BASKET_LAT[7] = NTRIP_CONNECT_OK;
-		
-				for(uint8_t i = 0; i <= 4; i++)
-				{
-					CAN_BASKET_LON[i] = (mulLon >> (8 * i)) & 0xFF;
-				}
-
-				CAN_Send(&hcan1, CAN_BASKET_LAT, CAN_LAT_ID);
-				CAN_Send(&hcan1, CAN_BASKET_LON, CAN_LON_ID);
-				CAN_Send(&hcan1, CAN_BASKET_ALT, CAN_ALT_ROVER_ID);
-			#endif
 		}
 		
 		
@@ -2814,126 +2784,65 @@ void StartmySysTickTask(void *argument)
 	for(;;)
 	{
 		freemem = xPortGetFreeHeapSize();
-		#ifdef CONTROL_BLOCK
-			delta_timeout_Can_coords = xTaskGetTickCount() - timer_CAN_coords;
-			delta_timeout_gps = xTaskGetTickCount() - gps_data_timer;
-			if (delta_timeout_gps > 5000)
-			{
-				MASTER_coord_latitude = 0;
-				MASTER_coord_longitude = 0;
-			}
-			
-			if (delta_timeout_Can_coords > 1000)
-			{
-				SLAVE_coord_latitude = 0;
-				SLAVE_coord_longitude = 0;
-			}
-			
-//			if (queue_cnt != 0)
-//				queue_init = 0;
-			
-						
-			if ((USART1->CR1 & 0x30) != 0x30)
-			{
-				HAL_UARTExRadio_ReceiveToIdle_IT();
-			}
-			
-			if (__HAL_UART_GET_FLAG(UART_COM2_GPS_HANDLE, UART_FLAG_ORE) != RESET)
-			{
-				__HAL_UART_CLEAR_OREFLAG(UART_COM2_GPS_HANDLE);
-				huart2.ErrorCode = 0;
 
-				HAL_UARTExCOM2_GPS_ReceiveToIdle_IT();
-			}
-//			if (__HAL_UART_GET_FLAG(UART_DEBUG_HANDLE, UART_FLAG_ORE) != RESET)
-//			{
-//				__HAL_UART_CLEAR_OREFLAG(UART_DEBUG_HANDLE);
-//				huart4.ErrorCode = 0;
-//				
-//				HAL_UARTExDebug_ReceiveToIdle_IT();
-//			}
-			
-			if (__HAL_UART_GET_FLAG(UART_RADIO_HANDLE, UART_FLAG_ORE) != RESET)
-			{
-				__HAL_UART_CLEAR_OREFLAG(UART_RADIO_HANDLE);
-				huart1.ErrorCode = 0;
-				
-				HAL_UARTExRadio_ReceiveToIdle_IT();
-			}
-			
-			if (__HAL_UART_GET_FLAG(UART_COM1_GPS_HANDLE, UART_FLAG_ORE) != RESET)
-			{
-				__HAL_UART_CLEAR_OREFLAG(UART_COM1_GPS_HANDLE);
-				huart6.ErrorCode = 0;
-				
-				HAL_UARTExCOM1_GPS_ReceiveToIdle_DMA();
+		delta_timeout_Can_coords = xTaskGetTickCount() - timer_CAN_coords;
+		delta_timeout_gps = xTaskGetTickCount() - gps_data_timer;
+		if (delta_timeout_gps > 5000)
+		{
+			MASTER_coord_latitude = 0;
+			MASTER_coord_longitude = 0;
+		}
+		
+		if (delta_timeout_Can_coords > 1000)
+		{
+			SLAVE_coord_latitude = 0;
+			SLAVE_coord_longitude = 0;
+		}
+								
+		if ((USART1->CR1 & 0x30) != 0x30)
+		{
+			HAL_UARTExRadio_ReceiveToIdle_IT();
+		}
+		
+		if (__HAL_UART_GET_FLAG(UART_COM2_GPS_HANDLE, UART_FLAG_ORE) != RESET)
+		{
+			__HAL_UART_CLEAR_OREFLAG(UART_COM2_GPS_HANDLE);
+			huart2.ErrorCode = 0;
 
-			}
-//			D_time_gps_parcel = xTaskGetTickCount() - time_gps_parcel;
-//			if (D_time_gps_parcel > 1000) 
-//			{
-//				HAL_UARTExGPS_ReceiveToIdle_IT();
-//				time_gps_parcel = xTaskGetTickCount();
-//			}
-			
-	//		MODE_CONTROL = START_AUTO;
-			if (xTaskGetTickCount() - Application_get_timer < 5000) REMOTE_CONNECT_OK = 1;
-			else 
-			{
-				REMOTE_CONNECT_OK = 0;
-				speed_level = 0;
-//				pack_length = 0;
-//				SERVER_BUF_CNT = 0;
-			}
-			
-			delta_timeout_RC = xTaskGetTickCount() - RC_timer;
-			if ((MODE_CONTROL == MANUAL_CONTROL_ON && delta_timeout_RC > 10000))
-			{
-				MODE_CONTROL = IDLE_MODE;
-			}
-			
-//			if (xTaskGetTickCount() - timer_CAN_DM1_Angles > 2000)
-//			{
-//				global_buf[PACK_LEN_dozerParams * CAN_Tx_DM1_Angles_place] = '$';
-//				global_buf[PACK_LEN_dozerParams * CAN_Tx_DM1_Angles_place + 1] = PACK_ID_dozerParams;
-//				global_buf[PACK_LEN_dozerParams * CAN_Tx_DM1_Angles_place + 2] = 0x11;
-//				global_buf[PACK_LEN_dozerParams * CAN_Tx_DM1_Angles_place + 3] = 0x05;
-//				
-//				for(u8 i = 4; i < 12; i++)
-//				{
-//					global_buf[PACK_LEN_dozerParams * CAN_Tx_DM1_Angles_place + i] = 0xFF;
-//				}
-//														
-//				global_buf[PACK_LEN_dozerParams * CAN_Tx_DM1_Angles_place + 12] = crc8(&global_buf[PACK_LEN_dozerParams * CAN_Tx_DM1_Angles_place + 1], 11);
-//			}
-//			
-//			if (xTaskGetTickCount() - timer_CAN_DM1_Heights > 2000)
-//			{
-//				global_buf[PACK_LEN_dozerParams * CAN_Tx_DM1_Heights_place] = '$';
-//				global_buf[PACK_LEN_dozerParams * CAN_Tx_DM1_Heights_place + 1] = PACK_ID_dozerParams;
-//				global_buf[PACK_LEN_dozerParams * CAN_Tx_DM1_Heights_place + 2] = 0x12;
-//				global_buf[PACK_LEN_dozerParams * CAN_Tx_DM1_Heights_place + 3] = 0x05;
-//				
-//				for(u8 i = 4; i < 12; i++)
-//				{
-//					global_buf[PACK_LEN_dozerParams * CAN_Tx_DM1_Heights_place + i] = 0xFF;
-//				}
-//														
-//				global_buf[PACK_LEN_dozerParams * CAN_Tx_DM1_Heights_place + 12] = crc8(&global_buf[PACK_LEN_dozerParams * CAN_Tx_DM1_Heights_place + 1], 11);
-//			}
-		#endif
+			HAL_UARTExCOM2_GPS_ReceiveToIdle_IT();
+		}
 		
-		#ifdef ROVER_BLOCK
+		if (__HAL_UART_GET_FLAG(UART_RADIO_HANDLE, UART_FLAG_ORE) != RESET)
+		{
+			__HAL_UART_CLEAR_OREFLAG(UART_RADIO_HANDLE);
+			huart1.ErrorCode = 0;
+			
+			HAL_UARTExRadio_ReceiveToIdle_IT();
+		}
 		
-			if (__HAL_UART_GET_FLAG(UART_COM2_GPS_HANDLE, UART_FLAG_ORE) != RESET)
-			{
-				__HAL_UART_CLEAR_OREFLAG(UART_COM2_GPS_HANDLE);
-				huart2.ErrorCode = 0;
+		if (__HAL_UART_GET_FLAG(UART_COM1_GPS_HANDLE, UART_FLAG_ORE) != RESET)
+		{
+			__HAL_UART_CLEAR_OREFLAG(UART_COM1_GPS_HANDLE);
+			huart6.ErrorCode = 0;
+			
+			HAL_UARTExCOM1_GPS_ReceiveToIdle_DMA();
 
-				HAL_UARTExGPS_ReceiveToIdle_IT();
-			}
-		#endif
+		}
 		
+		if (xTaskGetTickCount() - Application_get_timer < 5000) REMOTE_CONNECT_OK = 1;
+		else 
+		{
+			REMOTE_CONNECT_OK = 0;
+			speed_level = 0;
+		}
+		
+		delta_timeout_RC = xTaskGetTickCount() - RC_timer;
+		if ((MODE_CONTROL == MANUAL_CONTROL_ON && delta_timeout_RC > 10000))
+		{
+			MODE_CONTROL = IDLE_MODE;
+		}
+			
+			
 		osDelay(1);
 	}
 	/* USER CODE END StartmySysTickTask */

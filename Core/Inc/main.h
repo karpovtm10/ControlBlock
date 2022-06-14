@@ -75,6 +75,23 @@ void Error_Handler(void);
 #define LED1_Pin GPIO_PIN_4
 #define LED1_GPIO_Port GPIOD
 /* USER CODE BEGIN Private defines */
+#define CONTROL_TYPE							0
+#define	SICK_DEFINITION							1
+
+#define SICK_ACTIVATED							0
+#define SICK_IGNORING							1
+
+#define	RC_MANUAL								0
+#define RC_AUTO									1
+
+#define BIT0									0
+#define BIT1									1
+#define BIT2									2
+#define BIT3									3
+#define BIT4									4
+#define BIT5									5
+#define BIT6									6
+#define BIT7									7
 
 #define GIT										0
 #define MAIL_SIZE 								(u32) 50					// Размер очереди

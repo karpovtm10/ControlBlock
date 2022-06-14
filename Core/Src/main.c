@@ -1163,7 +1163,8 @@ void Parse_To_RC_Command(u8 *ArrayData)
 	CAN_BASKET_RC_SPEED_ENGINE[2] = 0xFF;     		
 	CAN_BASKET_RC_SPEED_ENGINE[3] = speed_level;	
 	CAN_BASKET_RC_SPEED_ENGINE[4] = 0xFF;        	
-	CAN_BASKET_RC_SPEED_ENGINE[5] = 0xFF; 			
+	CAN_BASKET_RC_SPEED_ENGINE[5] = 0 << BIT0 | 1 << BIT1; 	// Идентификатор автономного управления 0 bit [0 - ручное, 1 - автономное]
+											// Игнорирования препятствия			1 bit [0 - блокировавка, 1 - игнор]
 	CAN_BASKET_RC_SPEED_ENGINE[6] = 0x00;        	
 	CAN_BASKET_RC_SPEED_ENGINE[7] = 0x01;        	
 	
@@ -1503,7 +1504,7 @@ void run_RC_drive(void)
 }
 
 double deltaLon = 0, e = 0;
-double a = 6378240, b = 6356860;
+double aa = 6378240, bb = 6356860;
 double deltaLon_rad = 0;
 
 double latitude1_rad;       // Пересчет координат цели в радианы
@@ -1525,7 +1526,7 @@ double Azimuth_Calculating (double latitude1, double longitude1, double latitude
 	if ((longitude2 - longitude1) > 180) 		deltaLon = longitude2 - longitude1 - 360;
 	
 	deltaLon_rad = deltaLon * DEG_TO_RAD;
-	e = sqrt(1 - (b * b /a / a));
+	e = sqrt(1 - (bb * bb /aa / aa));
 
 	alfa = atan2(deltaLon_rad, (log((tan((pi / 4) + (latitude2_rad / 2)) * pow((1 - e * sin(latitude2_rad)) / (1 + e * sin(latitude2_rad)), e / 2))) - log((tan((pi / 4) + (latitude1_rad / 2)) * pow((1 - e * sin(latitude1_rad)) / (1 + e * sin(latitude1_rad)), e / 2)))));
 	
@@ -1790,7 +1791,8 @@ void run_gps_drive(void)  // Функция работы автоматичес�
 		CAN_BASKET_RC_SPEED_ENGINE[2] = 0xFF;
 		CAN_BASKET_RC_SPEED_ENGINE[3] = speed_level;
 		CAN_BASKET_RC_SPEED_ENGINE[4] = 0xFF;
-		CAN_BASKET_RC_SPEED_ENGINE[5] = 0xFF;
+		CAN_BASKET_RC_SPEED_ENGINE[5] = 0x01; 	// Идентификатор автономного управления 0 bit [0 - ручное, 1 - автономное]
+												// Игнорирования препятствия			1 bit [0 - блокировавка, 1 - игнор]
 		CAN_BASKET_RC_SPEED_ENGINE[6] = 0x00;
 		CAN_BASKET_RC_SPEED_ENGINE[7] = 0x01;
 

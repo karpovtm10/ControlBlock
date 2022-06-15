@@ -390,12 +390,12 @@ u8 negative_flag;
 u8 ies;
 u8 char_cnt;
 u8 sizeofc = 0;
-const char char_map[10] =													// Карта символов для функции CHAR TO INT
+const char char_map[10] =																	// Карта символов для функции CHAR TO INT
 {
 	'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'
 };
 
-i64 char_to_int (char *cti)													// Функция перевода из строки в число
+i64 char_to_int (char *cti)																	// Функция перевода из строки в число
 {
 	negative_flag = 0;
 	ies = 0;
@@ -421,7 +421,7 @@ i64 char_to_int (char *cti)													// Функция перевода из 
 	return number1;
 }
 
-uint8_t char_to_int_symbol (char cti)													// Функция перевода из строки в число
+uint8_t char_to_int_symbol (char cti)														// Функция перевода из строки в число
 {
 	uint8_t i_cnt = 0;
 
@@ -436,13 +436,13 @@ uint8_t char_to_int_symbol (char cti)													// Функция перево
 	return i_cnt;
 }
 
-void HAL_CAN_ErrorCallback(CAN_HandleTypeDef *hcan)
+void HAL_CAN_ErrorCallback(CAN_HandleTypeDef *hcan)											// Обработчик ошибок CAN
 {
     uint32_t er = HAL_CAN_GetError(hcan);
 	
 }
 
-void ReTransmitPacket(CAN_HandleTypeDef *hcan, CAN_RxHeaderTypeDef Header, u8 *data)
+void ReTransmitPacket(CAN_HandleTypeDef *hcan, CAN_RxHeaderTypeDef Header, u8 *data)		// Функция пересыла посылок из CAN2 в CAN1
 {
 	if (Header.IDE == CAN_ID_STD)
 	CAN_Send(hcan, data, Header.StdId);
@@ -453,27 +453,27 @@ void ReTransmitPacket(CAN_HandleTypeDef *hcan, CAN_RxHeaderTypeDef Header, u8 *d
 
 u8 queue_1 = 0, queue_2 = 1, queue_init = 1;
 u8 queue_cnt = 0;
-void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
+void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)								// Обработчик прерываний CAN
 {
-    if(HAL_CAN_GetRxMessage(&hcan1, CAN_RX_FIFO0, &CAN1_RxHeader, CAN1_RxData) == HAL_OK)
+    if(HAL_CAN_GetRxMessage(&hcan1, CAN_RX_FIFO0, &CAN1_RxHeader, CAN1_RxData) == HAL_OK) 	// CAN1
     {
-		QUEUE_t msg;
+		QUEUE_t msg;																		// Объаявление структуры очереди
 		//BaseType_t xHigherPriorityTaskWoken;
 		u16 IDx = 0;
 		
-		msg.data[0] = '$';
-		msg.data[1] = PACK_ID_dozerParams;
+		msg.data[0] = '$';																	// Формирование CAN пакета
+		msg.data[1] = PACK_ID_dozerParams;													// Идентификатор CAN пакета
 		
 		
 		for(u8 i = 0; i < 8; i++)
 		{
-			msg.data[i + 4] = CAN1_RxData[i];
-		}
+			msg.data[i + 4] = CAN1_RxData[i];												// Сохраняем CAN пакет для отправки в очередь
+		}	
 	
 		
-		IDx = (CAN1_RxHeader.ExtId >> 8) & 0xFFFF;
+		IDx = (CAN1_RxHeader.ExtId >> 8) & 0xFFFF;											// Отсекаем ненужную часть CAN ID для формирования пакета по протоколу
 		
-		switch(IDx)
+		switch(IDx)																			// Поиск CAN ID в списке
 		{
 
 				
@@ -688,13 +688,13 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 						
 			break;
 		}
-		if (isCanSendingAllowed)
+		if (isCanSendingAllowed)																// Если пришла посылка из списка
 		{
-			for(u8 i = 0; i < PACK_LEN_dozerParams; i++)
+			for(u8 i = 0; i < PACK_LEN_dozerParams; i++)										// Сохранение CAN посылок в единый массив
 			{
 				global_buf[PACK_LEN_dozerParams * place + i] = msg.data[i];
 			}
-			isCanSendingAllowed = 0;
+			isCanSendingAllowed = 0;															// Обнуление флага принятой посылки из списка
 		}
 			
 //		if (xTaskGetTickCount() - can_send_timer > 1000)
@@ -709,59 +709,59 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
          
     }
 	
-	if(HAL_CAN_GetRxMessage(&hcan2, CAN_RX_FIFO0, &CAN2_RxHeader, CAN2_RxData) == HAL_OK)
+	if(HAL_CAN_GetRxMessage(&hcan2, CAN_RX_FIFO0, &CAN2_RxHeader, CAN2_RxData) == HAL_OK)		// CAN2
     {
-		if (CAN2_RxHeader.StdId == CAN_LAT1_EXT_ID)
+		if (CAN2_RxHeader.StdId == CAN_LAT1_EXT_ID)												// Широта
 		{
-			timer_CAN_coords = xTaskGetTickCount();
+			timer_CAN_coords = xTaskGetTickCount();												// Перезапуск таймера таймаута
 			SLAVE_coord_latitude = 0;
 			u64_lat1 = 0;
-			lat1_multiplier = 100000000;
+			lat1_multiplier = 100000000;														// Делитель широты
 			
 			for(u8 i = 0; i <= 4; i++)
 			{
-				u64_lat1 = u64_lat1 + ((u64)CAN2_RxData[i] << (i * 8));
+				u64_lat1 = u64_lat1 + ((u64)CAN2_RxData[i] << (i * 8));							// Собираем широту из CAN посылки
 			}
 						
-			SLAVE_coord_latitude = (double)u64_lat1 / lat1_multiplier - 90;
-			GPSFixData.ReceiverMode_2 = CAN2_RxData[5];
-			GPSFixData.SatelliteNum_2 = CAN2_RxData[6];
+			SLAVE_coord_latitude = (double)u64_lat1 / lat1_multiplier - 90;						// Преобразование координаты в десятичный вид
+			GPSFixData.ReceiverMode_2 = CAN2_RxData[5];											// Качество решения
+			GPSFixData.SatelliteNum_2 = CAN2_RxData[6];											// Количество спутников
 //			NTRIP_CONNECT_OK_2 = CAN2_RxData[7];
 		}	
-		else if (CAN2_RxHeader.StdId == CAN_LON1_EXT_ID)
+		else if (CAN2_RxHeader.StdId == CAN_LON1_EXT_ID)										// Долгота
 		{	
-			timer_CAN_coords = xTaskGetTickCount();			
+			timer_CAN_coords = xTaskGetTickCount();												// Перезапуск таймера таймаута
 			SLAVE_coord_longitude = 0;
 			u64_lon1 = 0;
-			lon1_multiplier = 100000000;
+			lon1_multiplier = 100000000;														// Делитель долготы
 			
 			for(u8 i = 0; i <= 4; i++)
 			{
-				u64_lon1 = u64_lon1 + ((u64)CAN2_RxData[i] << (i * 8));
+				u64_lon1 = u64_lon1 + ((u64)CAN2_RxData[i] << (i * 8));							// Собираем долготу из CAN посылки
 			}
 			
 			SLAVE_coord_longitude = (double)u64_lon1 / lon1_multiplier - 180;	
 		}
-		else if (CAN2_RxHeader.StdId == CAN_ALT_ROVER_ID)
+		else if (CAN2_RxHeader.StdId == CAN_ALT_ROVER_ID)										// Высота
 		{
 			
 		}
 		else
-        ReTransmitPacket(&hcan1, CAN2_RxHeader, CAN2_RxData);
+			ReTransmitPacket(&hcan1, CAN2_RxHeader, CAN2_RxData);								// Все остальные посылки пересылаем в CAN1
     }
 }
 
-void CAN_Send(CAN_HandleTypeDef *hcan, u8 *data, u32 can_id)                                   // Функция отправки CAN сообщений
+void CAN_Send(CAN_HandleTypeDef *hcan, u8 *data, u32 can_id)                                   	// Функция отправки CAN сообщений
 {
-	if (hcan == &hcan1)
+	if (hcan == &hcan1)																			// Если CAN1
 	{
-		if (can_id <= 0x7FF)
+		if (can_id <= 0x7FF)																	// Если ID в диапазоне стандартной посылки
 		{	
 			CAN1_TxHeader.StdId = can_id;
 			CAN1_TxHeader.ExtId = CAN_EXT_ID;
 			CAN1_TxHeader.IDE = CAN_ID_STD;
 		}
-		else
+		else																					// Иначе ID - расширенный
 		{
 			CAN1_TxHeader.StdId = CAN_STD_ID;		
 			CAN1_TxHeader.ExtId = can_id;
@@ -784,15 +784,15 @@ void CAN_Send(CAN_HandleTypeDef *hcan, u8 *data, u32 can_id)                    
 		HAL_CAN_AddTxMessage(hcan, &CAN1_TxHeader, CAN1_TxData, &CAN1_TxMailbox);
 	}
 	
-	if (hcan == &hcan2)
+	if (hcan == &hcan2)																			// Если CAN2
 	{
-		if (can_id <= 0x7FF)
+		if (can_id <= 0x7FF)																	// Если ID в диапазоне стандартной посылки
 		{	
 			CAN2_TxHeader.StdId = can_id;
 			CAN2_TxHeader.ExtId = CAN_EXT_ID;
 			CAN2_TxHeader.IDE = CAN_ID_STD;
 		}
-		else
+		else																					// Иначе ID - расширенный
 		{
 			CAN2_TxHeader.StdId = CAN_STD_ID;		
 			CAN2_TxHeader.ExtId = can_id;
@@ -819,17 +819,17 @@ void CAN_Send(CAN_HandleTypeDef *hcan, u8 *data, u32 can_id)                    
 
 void gsm_at_parse (char *result, volatile char *GSM_TEMP, char *left_mask, char *right_mask) 	// *GSM_TEMP = наша команда
 {	
-	u8 i = 0, j = 0, del = 0;								                            	// *left_mask = символы перед нужной нам частью строки
-	char *startstring; 											            	// *right_mask = символы после нужной нам части строки
+	u8 i = 0, j = 0, del = 0;								                            		// *left_mask = символы перед нужной нам частью строки
+	char *startstring; 											            					// *right_mask = символы после нужной нам части строки
 	char *endstring;
 	u8 sofleft = 0;
 	u16 sofstart = 0;
 	u16 sofend = 0;
 	sofleft = strlen(left_mask);
-    startstring = strstr((const char *)GSM_TEMP, left_mask); // ищем left_mask
-    startstring = startstring + sofleft; 
+    startstring = strstr((const char *)GSM_TEMP, left_mask); 									// ищем left_mask
+    startstring = startstring + sofleft;														// Получаем указатель на символ следующий за left mask 
 
-	endstring = strstr(startstring, right_mask);
+	endstring = strstr(startstring, right_mask);												// Получаем указатель на строку до right mask
 	sofstart = strlen(startstring);
 	sofend = strlen(right_mask);
 	for (; i < sofstart; i++)
@@ -857,13 +857,13 @@ void gsm_at_parse (char *result, volatile char *GSM_TEMP, char *left_mask, char 
 	}
 }
 
-void clear_RXBuffer(u8 *RX_BUFER, u16 size)           				// Функция очистки буфера
+void clear_RXBuffer(u8 *RX_BUFER, u16 size)           											// Функция очистки буфера
 {
     u16 i = 0;
     for (i = 0; i < size; i++) RX_BUFER[i] = 0;
 }
 
-void HAL_UARTExDebug_ReceiveToIdle_IT(void)
+void HAL_UARTExDebug_ReceiveToIdle_IT(void)													
 {
 	HAL_UARTEx_ReceiveToIdle_IT(UART_DEBUG_HANDLE, (u8 *)RADIO_DATA1, 30);
 }
@@ -1163,8 +1163,8 @@ void Parse_To_RC_Command(u8 *ArrayData)
 	CAN_BASKET_RC_SPEED_ENGINE[2] = 0xFF;     		
 	CAN_BASKET_RC_SPEED_ENGINE[3] = speed_level;	
 	CAN_BASKET_RC_SPEED_ENGINE[4] = 0xFF;        	
-	CAN_BASKET_RC_SPEED_ENGINE[5] = 0 << BIT0 | 1 << BIT1; 	// Идентификатор автономного управления 0 bit [0 - ручное, 1 - автономное]
-											// Игнорирования препятствия			1 bit [0 - блокировавка, 1 - игнор]
+	CAN_BASKET_RC_SPEED_ENGINE[5] = RC_MANUAL << CONTROL_TYPE | SICK_IGNORING << SICK_DEFINITION; 	// Идентификатор автономного управления 0 bit [0 - ручное, 1 - автономное]
+																									// Игнорирования препятствия			1 bit [0 - блокировавка, 1 - игнор]
 	CAN_BASKET_RC_SPEED_ENGINE[6] = 0x00;        	
 	CAN_BASKET_RC_SPEED_ENGINE[7] = 0x01;        	
 	
@@ -1791,8 +1791,8 @@ void run_gps_drive(void)  // Функция работы автоматичес�
 		CAN_BASKET_RC_SPEED_ENGINE[2] = 0xFF;
 		CAN_BASKET_RC_SPEED_ENGINE[3] = speed_level;
 		CAN_BASKET_RC_SPEED_ENGINE[4] = 0xFF;
-		CAN_BASKET_RC_SPEED_ENGINE[5] = 0x01; 	// Идентификатор автономного управления 0 bit [0 - ручное, 1 - автономное]
-												// Игнорирования препятствия			1 bit [0 - блокировавка, 1 - игнор]
+		CAN_BASKET_RC_SPEED_ENGINE[5] = RC_AUTO << CONTROL_TYPE | SICK_ACTIVATED << SICK_DEFINITION;; 	// Идентификатор автономного управления 0 bit [0 - ручное, 1 - автономное]
+																										// Игнорирования препятствия			1 bit [0 - блокировавка, 1 - игнор]
 		CAN_BASKET_RC_SPEED_ENGINE[6] = 0x00;
 		CAN_BASKET_RC_SPEED_ENGINE[7] = 0x01;
 

@@ -1163,8 +1163,8 @@ void Parse_To_RC_Command(u8 *ArrayData)
 	CAN_BASKET_RC_SPEED_ENGINE[2] = 0xFF;     		
 	CAN_BASKET_RC_SPEED_ENGINE[3] = speed_level;	
 	CAN_BASKET_RC_SPEED_ENGINE[4] = 0xFF;        	
-	CAN_BASKET_RC_SPEED_ENGINE[5] = RC_MANUAL << CONTROL_TYPE | SICK_IGNORING << SICK_DEFINITION; 	// Идентификатор автономного управления 0 bit [0 - ручное, 1 - автономное]
-																									// Игнорирования препятствия			1 bit [0 - блокировавка, 1 - игнор]
+//	CAN_BASKET_RC_SPEED_ENGINE[5] = RC_MANUAL << CONTROL_TYPE | SICK_IGNORING << SICK_DEFINITION; 	// Идентификатор автономного управления 0 bit [0 - ручное, 1 - автономное]
+	CAN_BASKET_RC_SPEED_ENGINE[5]=0xff;																								// Игнорирования препятствия			1 bit [0 - блокировавка, 1 - игнор]
 	CAN_BASKET_RC_SPEED_ENGINE[6] = 0x00;        	
 	CAN_BASKET_RC_SPEED_ENGINE[7] = 0x01;        	
 	
@@ -1576,6 +1576,46 @@ void Set_Left_Joystick_poti(i8 joy_y, i8 joy_x)
 	}
 }
 
+void Set_Right_Joystick_poti(i8 joy_y, i8 joy_x)
+{
+	if (joy_y>100) joy_y = 100;
+	if (joy_y<-100) joy_y = -100;
+	if (joy_x>100) joy_x = 100;
+	if (joy_x<-100) joy_x = -100;
+	
+	if (joy_y > 0)
+	{
+		CAN_BASKET_RC_DIR[1] = joy_y;
+		CAN_BASKET_RC_DIR[3] = 255 - CAN_BASKET_RC_DIR[1];
+	}
+	else if (joy_y < 0)
+	{
+		CAN_BASKET_RC_DIR[3] = joy_y * (-1);
+		CAN_BASKET_RC_DIR[1] = 255 - CAN_BASKET_RC_DIR[3];
+	}
+	else
+	{
+		CAN_BASKET_RC_DIR[1] = STOP_DRIVE;
+		CAN_BASKET_RC_DIR[3] = STOP_DRIVE;	
+	}
+	
+	if (joy_x > 0)
+	{
+		CAN_BASKET_RC_DIR[0] = joy_x;
+		CAN_BASKET_RC_DIR[2] = 255 - CAN_BASKET_RC_DIR[0];
+	}
+	else if (joy_x < 0)
+	{
+		CAN_BASKET_RC_DIR[2] = joy_x * (-1);
+		CAN_BASKET_RC_DIR[0] = 255 - CAN_BASKET_RC_DIR[2];	
+	}
+	else
+	{
+		CAN_BASKET_RC_DIR[2] = STOP_DRIVE;
+		CAN_BASKET_RC_DIR[0] = STOP_DRIVE;
+	}
+}
+
 double 			check_zone = 0;						// Радиус вокруг цели для проверки попадания в точку маршрута
 double 			Target_lat_i;
 double 			Target_lon_i;
@@ -1584,6 +1624,9 @@ double 			My_lon_i;
 u8 				turn_step = 0;
 i16 			joy_x_set = 0;
 i16 			joy_y_set = 0;
+time_t timeout_navesnoe = 0;
+u8 Navesnoe_ready = 0;
+u8 Navesnoe_step = 0;
 
 
 void run_gps_drive(void)  // Функция работы автоматического движения по gps координатам
@@ -1604,186 +1647,297 @@ void run_gps_drive(void)  // Функция работы автоматичес�
 //	SLAVE_coord_longitude = 61;
 //	MASTER_coord_latitude = 52;
 //	MASTER_coord_longitude = 62;
-
-	if (TARGET_coord_latitude != 0 && TARGET_coord_longitude !=0 &&	MASTER_coord_latitude !=0 && MASTER_coord_longitude !=0 && SLAVE_coord_latitude != 0 && SLAVE_coord_longitude != 0)
+	if (Navesnoe_ready)
 	{
-		check_zone = sqrt((My_lat_i - Target_lat_i) * (My_lat_i - Target_lat_i) + (My_lon_i - Target_lon_i) * (My_lon_i - Target_lon_i));
-		ANGLE_btw_TARGET_N_DOZER = Azimuth_Calculating(MASTER_coord_latitude, MASTER_coord_longitude, TARGET_coord_latitude, TARGET_coord_longitude);
-//		// Задание допустимого радиуса цели
-		if (check_zone > 130 && !next)
+		if (TARGET_coord_latitude != 0 && TARGET_coord_longitude !=0 &&	MASTER_coord_latitude !=0 && MASTER_coord_longitude !=0 && SLAVE_coord_latitude != 0 && SLAVE_coord_longitude != 0)
 		{
-			if ((ANGLE_btw_TARGET_N_DOZER < 180) && (HEADING < 180))                 // Вычисление направления поворота движения
+			check_zone = sqrt((My_lat_i - Target_lat_i) * (My_lat_i - Target_lat_i) + (My_lon_i - Target_lon_i) * (My_lon_i - Target_lon_i));
+			ANGLE_btw_TARGET_N_DOZER = Azimuth_Calculating(MASTER_coord_latitude, MASTER_coord_longitude, TARGET_coord_latitude, TARGET_coord_longitude);
+	//		// Задание допустимого радиуса цели
+			if (check_zone > 130 && !next)
 			{
-				DELTA_ANGLE_btw_CURSE_N_HEADING = fabs(ANGLE_btw_TARGET_N_DOZER - HEADING);
-				
-				if ((ANGLE_btw_TARGET_N_DOZER - HEADING) < -1)			_curse = LEFT_DRIVE;
-				else if ((ANGLE_btw_TARGET_N_DOZER - HEADING) > 1)		_curse = RIGHT_DRIVE;
-				else													_curse = FORWARD_DRIVE;
-			}
-
-			if ((ANGLE_btw_TARGET_N_DOZER < 180) && (HEADING > 180))
-			{
-				if ((360 - HEADING + ANGLE_btw_TARGET_N_DOZER) < 180)
+				if ((ANGLE_btw_TARGET_N_DOZER < 180) && (HEADING < 180))                 // Вычисление направления поворота движения
 				{
-																		_curse = RIGHT_DRIVE;
-					DELTA_ANGLE_btw_CURSE_N_HEADING = 360 - HEADING + ANGLE_btw_TARGET_N_DOZER;;
+					DELTA_ANGLE_btw_CURSE_N_HEADING = fabs(ANGLE_btw_TARGET_N_DOZER - HEADING);
+					
+					if ((ANGLE_btw_TARGET_N_DOZER - HEADING) < -1)			_curse = LEFT_DRIVE;
+					else if ((ANGLE_btw_TARGET_N_DOZER - HEADING) > 1)		_curse = RIGHT_DRIVE;
+					else													_curse = FORWARD_DRIVE;
 				}
-				else
-				{
-																		_curse = LEFT_DRIVE;
-					DELTA_ANGLE_btw_CURSE_N_HEADING = HEADING - ANGLE_btw_TARGET_N_DOZER;
-				}
-			}
 
-			if ((ANGLE_btw_TARGET_N_DOZER > 180) && (HEADING < 180))
-			{
-				
-				if ((360 - ANGLE_btw_TARGET_N_DOZER + HEADING) < 180)    
+				if ((ANGLE_btw_TARGET_N_DOZER < 180) && (HEADING > 180))
 				{
-																		_curse = LEFT_DRIVE;
-					DELTA_ANGLE_btw_CURSE_N_HEADING = 360 - ANGLE_btw_TARGET_N_DOZER + HEADING;
-				}
-				else
-				{
-																		_curse = RIGHT_DRIVE;
-					DELTA_ANGLE_btw_CURSE_N_HEADING = ANGLE_btw_TARGET_N_DOZER - HEADING;
-				} 
-			
-			}
-
-			if ((ANGLE_btw_TARGET_N_DOZER > 180) && (HEADING > 180))
-			{
-				DELTA_ANGLE_btw_CURSE_N_HEADING = fabs(ANGLE_btw_TARGET_N_DOZER - HEADING);
-				if ((ANGLE_btw_TARGET_N_DOZER - HEADING) > 1)			_curse = RIGHT_DRIVE;
-				else if ((ANGLE_btw_TARGET_N_DOZER - HEADING) < -1)		_curse = LEFT_DRIVE;
-				else                                          			_curse = FORWARD_DRIVE;
-			}
-		}
-		else if (Num_Route_Point_DONE < total_NUM_Points_Route)
-		{
-			next = 0;
-			msg.data[0] = '$';
-			msg.data[1] = 0x13;
-			msg.data[2] = Num_Route_Point_DONE;
-			msg.data[3] = crc8(&msg.data[1], 2);
-			
-			xQueueSend(SendQueueHandle, &msg.data, osWaitForever);
-			
-			coordRoute[Current_Route_Point].latitude = 0;
-			coordRoute[Current_Route_Point].longitude = 0;
-			Current_Route_Point++;
-			Num_Route_Point_DONE++;
-			
-			if (Current_Route_Point == RoutePoints_COUNT) Current_Route_Point = 0;
-			if (Num_Route_Point_DONE == total_NUM_Points_Route) 
-			{
-				MODE_CONTROL = STOP_AUTO;
-			}
-			_curse = NO_MOVEMENT;
-		}
-		else
-			_curse = NO_MOVEMENT;
-		
-		if (check_zone > 400)
-		{
-			joy_y_set = 80;
-		}
-		else
-		{
-			joy_y_set = check_zone / 4;
-			if (joy_y_set > 80) joy_y_set = 80;
-			if (joy_y_set < 20) joy_y_set = 20;
-		}
-		
-		switch (_curse)                                       // Вычисление значений ШИМ для гусениц
-		{
-		  case NO_MOVEMENT:
-					joy_x_set = 0;
-					joy_y_set = 0;
-					Set_Left_Joystick_poti(joy_y_set, joy_x_set);
-					turn_in_place = 1;
-		  break;
-
-		  case RIGHT_DRIVE:
-					if (!turn_in_place)
+					if ((360 - HEADING + ANGLE_btw_TARGET_N_DOZER) < 180)
 					{
-						joy_x_set = DELTA_ANGLE_btw_CURSE_N_HEADING * 10;
-						if (joy_x_set > 40) joy_x_set = 40;
-						if (joy_x_set < 20) joy_x_set = 20;
-						
-						Set_Left_Joystick_poti(joy_y_set, (i8)joy_x_set);
-					}
-					else if (turn_step == 0) 
-					{
-						joy_y_set = 0;
-						joy_x_set = 100;
-						Set_Left_Joystick_poti(joy_y_set, joy_x_set);
-						turn_step = 1;
-						osDelay(200);
+																			_curse = RIGHT_DRIVE;
+						DELTA_ANGLE_btw_CURSE_N_HEADING = 360 - HEADING + ANGLE_btw_TARGET_N_DOZER;;
 					}
 					else
 					{
-						joy_x_set = 100;
-						joy_y_set = DELTA_ANGLE_btw_CURSE_N_HEADING * 5;
-						if (joy_y_set > 50) joy_y_set = 50;
-						if (joy_y_set < 20) joy_y_set = 20;
-						Set_Left_Joystick_poti((i8)joy_y_set, joy_x_set);
+																			_curse = LEFT_DRIVE;
+						DELTA_ANGLE_btw_CURSE_N_HEADING = HEADING - ANGLE_btw_TARGET_N_DOZER;
 					}
-		  break;
+				}
 
-		  case LEFT_DRIVE:
-					if (!turn_in_place)
+				if ((ANGLE_btw_TARGET_N_DOZER > 180) && (HEADING < 180))
+				{
+					
+					if ((360 - ANGLE_btw_TARGET_N_DOZER + HEADING) < 180)    
 					{
-						joy_x_set = DELTA_ANGLE_btw_CURSE_N_HEADING * (-10);
-						if (joy_x_set < -40) joy_x_set = -40;
-						if (joy_x_set > -20) joy_x_set = -20;
-						
-						Set_Left_Joystick_poti(joy_y_set, (i8)joy_x_set);
-					}
-					else if (turn_step == 0)
-					{
-						joy_y_set = 0;
-						joy_x_set = -100;
-						Set_Left_Joystick_poti(joy_y_set, joy_x_set);
-						turn_step = 1;
-						osDelay(200);
+																			_curse = LEFT_DRIVE;
+						DELTA_ANGLE_btw_CURSE_N_HEADING = 360 - ANGLE_btw_TARGET_N_DOZER + HEADING;
 					}
 					else
 					{
-						joy_x_set = -100;
-						joy_y_set = DELTA_ANGLE_btw_CURSE_N_HEADING * 5;
-						if (joy_y_set > 50) joy_y_set = 50;
-						if (joy_y_set < 20) joy_y_set = 20;
-						Set_Left_Joystick_poti((i8)joy_y_set, joy_x_set);
-					}
-		  break;
+																			_curse = RIGHT_DRIVE;
+						DELTA_ANGLE_btw_CURSE_N_HEADING = ANGLE_btw_TARGET_N_DOZER - HEADING;
+					} 
+				
+				}
 
-		  case FORWARD_DRIVE:
+				if ((ANGLE_btw_TARGET_N_DOZER > 180) && (HEADING > 180))
+				{
+					DELTA_ANGLE_btw_CURSE_N_HEADING = fabs(ANGLE_btw_TARGET_N_DOZER - HEADING);
+					if ((ANGLE_btw_TARGET_N_DOZER - HEADING) > 1)			_curse = RIGHT_DRIVE;
+					else if ((ANGLE_btw_TARGET_N_DOZER - HEADING) < -1)		_curse = LEFT_DRIVE;
+					else                                          			_curse = FORWARD_DRIVE;
+				}
+			}
+			else if (Num_Route_Point_DONE < total_NUM_Points_Route)
+			{
+				Navesnoe_ready = 0;
+				next = 0;
+				msg.data[0] = '$';
+				msg.data[1] = 0x13;
+				msg.data[2] = Num_Route_Point_DONE;
+				msg.data[3] = crc8(&msg.data[1], 2);
+				
+				xQueueSend(SendQueueHandle, &msg.data, osWaitForever);
+				
+				coordRoute[Current_Route_Point].latitude = 0;
+				coordRoute[Current_Route_Point].longitude = 0;
+				Current_Route_Point++;
+				Num_Route_Point_DONE++;
+				
+				if (Current_Route_Point == RoutePoints_COUNT) Current_Route_Point = 0;
+				if (Num_Route_Point_DONE == total_NUM_Points_Route) 
+				{
+					MODE_CONTROL = STOP_AUTO;
+				}
+				_curse = NO_MOVEMENT;
+			}
+			else
+			{
+				Navesnoe_ready = 0;
+				_curse = NO_MOVEMENT;
+			}
+			
+			if (check_zone > 400)
+			{
+				joy_y_set = 80;
+			}
+			else
+			{
+				joy_y_set = check_zone / 4;
+				if (joy_y_set > 80) joy_y_set = 80;
+				if (joy_y_set < 20) joy_y_set = 20;
+			}
+			
+			switch (_curse)                                       // Вычисление значений ШИМ для гусениц
+			{
+				case NO_MOVEMENT:
 						joy_x_set = 0;
+						joy_y_set = 0;
 						Set_Left_Joystick_poti(joy_y_set, joy_x_set);
-		  
-						turn_in_place = 0;
-						turn_step = 0;
-								
-		  break;
-		  
-		  case BACKWARD_DRIVE:
-			  
-		  break;
-		}
+						turn_in_place = 1;
+				break;
 
-		CAN_BASKET_RC_DRIVING[4] = 0xFF;
-		CAN_BASKET_RC_DRIVING[5] = left_btn;
-		CAN_BASKET_RC_DRIVING[6] = 0x00;
-		CAN_BASKET_RC_DRIVING[7] = 0xFF;
-		
-		CAN_BASKET_RC_DIR[0] = STOP_DRIVE;
-		CAN_BASKET_RC_DIR[1] = STOP_DRIVE;
-		CAN_BASKET_RC_DIR[2] = STOP_DRIVE;
-		CAN_BASKET_RC_DIR[3] = STOP_DRIVE;
-		CAN_BASKET_RC_DIR[4] = 0xFF;
+				case RIGHT_DRIVE:
+						if (!turn_in_place)
+						{
+							joy_x_set = DELTA_ANGLE_btw_CURSE_N_HEADING * 10;
+							if (joy_x_set > 60) joy_x_set = 60;
+							if (joy_x_set < 20) joy_x_set = 20;
+							
+							Set_Left_Joystick_poti(joy_y_set, (i8)joy_x_set);
+						}
+						else if (turn_step == 0) 
+						{
+							joy_y_set = 0;
+							joy_x_set = 100;
+							Set_Left_Joystick_poti(joy_y_set, joy_x_set);
+							turn_step = 1;
+							osDelay(200);
+						}
+						else
+						{
+							joy_x_set = 100;
+							joy_y_set = DELTA_ANGLE_btw_CURSE_N_HEADING * 5;
+							if (joy_y_set > 60) joy_y_set = 60;
+							if (joy_y_set < 30) joy_y_set = 30;
+							Set_Left_Joystick_poti((i8)joy_y_set, joy_x_set);
+						}
+				break;
+
+				case LEFT_DRIVE:
+						if (!turn_in_place)
+						{
+							joy_x_set = DELTA_ANGLE_btw_CURSE_N_HEADING * (-10);
+							if (joy_x_set < -60) joy_x_set = -60;
+							if (joy_x_set > -20) joy_x_set = -20;
+							
+							Set_Left_Joystick_poti(joy_y_set, (i8)joy_x_set);
+						}
+						else if (turn_step == 0)
+						{
+							joy_y_set = 0;
+							joy_x_set = -100;
+							Set_Left_Joystick_poti(joy_y_set, joy_x_set);
+							turn_step = 1;
+							osDelay(200);
+						}
+						else
+						{
+							joy_x_set = -100;
+							joy_y_set = DELTA_ANGLE_btw_CURSE_N_HEADING * 5;
+							if (joy_y_set > 60) joy_y_set = 60;
+							if (joy_y_set < 30) joy_y_set = 30;
+							Set_Left_Joystick_poti((i8)joy_y_set, joy_x_set);
+						}
+				break;
+
+				case FORWARD_DRIVE:
+							if (Navesnoe_step == 4)
+							{
+									Navesnoe_ready = 0;
+									timeout_navesnoe = xTaskGetTickCount();
+							}
+							else
+							{
+									joy_x_set = 0;
+									Set_Left_Joystick_poti(joy_y_set, joy_x_set);
+									turn_in_place = 0;
+									turn_step = 0;
+							}
+				
+							
+									
+				break;
+				
+				case BACKWARD_DRIVE:
+					
+				break;
+			}
+
+			CAN_BASKET_RC_DRIVING[4] = 0xFF;
+			CAN_BASKET_RC_DRIVING[5] = left_btn;
+			CAN_BASKET_RC_DRIVING[6] = 0x00;
+			CAN_BASKET_RC_DRIVING[7] = 0xFF;
+			
+			CAN_BASKET_RC_DIR[0] = STOP_DRIVE;
+			CAN_BASKET_RC_DIR[1] = STOP_DRIVE;
+			CAN_BASKET_RC_DIR[2] = STOP_DRIVE;
+			CAN_BASKET_RC_DIR[3] = STOP_DRIVE;
+			CAN_BASKET_RC_DIR[4] = 0xFF;
+			CAN_BASKET_RC_DIR[5] = right_btn;
+			CAN_BASKET_RC_DIR[6] = 0x00;
+			CAN_BASKET_RC_DIR[7] = 0xFF;
+			
+			CAN_BASKET_RC_SPEED_ENGINE[0] = 0xFF;
+			CAN_BASKET_RC_SPEED_ENGINE[1] = 0xFF;
+			CAN_BASKET_RC_SPEED_ENGINE[2] = 0xFF;
+			CAN_BASKET_RC_SPEED_ENGINE[3] = speed_level;
+			CAN_BASKET_RC_SPEED_ENGINE[4] = 0xFF;
+//			CAN_BASKET_RC_SPEED_ENGINE[5] = RC_AUTO << CONTROL_TYPE | SICK_ACTIVATED << SICK_DEFINITION;; 	// Идентификатор автономного управления 0 bit [0 - ручное, 1 - автономное]
+				CAN_BASKET_RC_SPEED_ENGINE[5] = 0xff;																							// Игнорирования препятствия			1 bit [0 - блокировавка, 1 - игнор]
+			CAN_BASKET_RC_SPEED_ENGINE[6] = 0x00;
+			CAN_BASKET_RC_SPEED_ENGINE[7] = 0x01;
+
+		}
+	}
+	else
+	{
+		switch(Navesnoe_step)
+		{
+			case 0: right_btn = 0x10;
+							Navesnoe_step++;
+							timeout_navesnoe = xTaskGetTickCount();
+			break;
+			
+			case 1:
+							if (xTaskGetTickCount() - timeout_navesnoe > 1000)
+							{
+								right_btn = 0x00;
+								Navesnoe_step++;
+								timeout_navesnoe = xTaskGetTickCount();
+							}
+			break;
+							
+			case 2:
+							Set_Right_Joystick_poti(-100, 0);
+							if (xTaskGetTickCount() - timeout_navesnoe > 8000)
+							{
+								Navesnoe_step++;
+								timeout_navesnoe = xTaskGetTickCount();
+							}
+			break;
+							
+			case 3:
+							Set_Right_Joystick_poti(0, 0);
+							Navesnoe_ready = 1;
+							Navesnoe_step++;
+			break;
+			
+			case 4:
+							Set_Right_Joystick_poti(100, 0);
+							if (xTaskGetTickCount() - timeout_navesnoe > 1000)
+							{
+								right_btn = 0x08;
+								Navesnoe_step++;
+								timeout_navesnoe = xTaskGetTickCount();
+							}
+			break;
+							
+			case 5:
+			if (xTaskGetTickCount() - timeout_navesnoe > 5000)
+			{
+				right_btn = 0x00;
+				Navesnoe_step++;
+				timeout_navesnoe = xTaskGetTickCount();
+			}
+			break;
+							
+			case 6:
+							Set_Right_Joystick_poti(0, 0);
+							right_btn = 0x10;
+							Navesnoe_step++;
+							timeout_navesnoe = xTaskGetTickCount();
+			break;
+			
+			case 7:
+							if (xTaskGetTickCount() - timeout_navesnoe > 1000)
+							{
+								right_btn = 0x00;
+								Navesnoe_step = 0;
+								Navesnoe_ready = 1;
+							}
+			break;
+			default:
+			break;
+				
+		}
+		CAN_BASKET_RC_DRIVING[0] = 0x00;    	
+		CAN_BASKET_RC_DRIVING[1] = 0x00;    	
+		CAN_BASKET_RC_DRIVING[2] = 0x00;    	
+		CAN_BASKET_RC_DRIVING[3] = 0x00;    	                    
+		CAN_BASKET_RC_DRIVING[4] = 0xFF;        	
+		CAN_BASKET_RC_DRIVING[5] = 0x00;    	
+		CAN_BASKET_RC_DRIVING[6] = 0x00;        	
+		CAN_BASKET_RC_DRIVING[7] = 0xFF;        	
+					    
+		CAN_BASKET_RC_DIR[4] = 0xFF;        
 		CAN_BASKET_RC_DIR[5] = right_btn;
-		CAN_BASKET_RC_DIR[6] = 0x00;
+		CAN_BASKET_RC_DIR[6] = 0x00;        
 		CAN_BASKET_RC_DIR[7] = 0xFF;
 		
 		CAN_BASKET_RC_SPEED_ENGINE[0] = 0xFF;
@@ -1791,14 +1945,15 @@ void run_gps_drive(void)  // Функция работы автоматичес�
 		CAN_BASKET_RC_SPEED_ENGINE[2] = 0xFF;
 		CAN_BASKET_RC_SPEED_ENGINE[3] = speed_level;
 		CAN_BASKET_RC_SPEED_ENGINE[4] = 0xFF;
-		CAN_BASKET_RC_SPEED_ENGINE[5] = RC_AUTO << CONTROL_TYPE | SICK_ACTIVATED << SICK_DEFINITION;; 	// Идентификатор автономного управления 0 bit [0 - ручное, 1 - автономное]
-																										// Игнорирования препятствия			1 bit [0 - блокировавка, 1 - игнор]
+//		CAN_BASKET_RC_SPEED_ENGINE[5] = RC_AUTO << CONTROL_TYPE | SICK_ACTIVATED << SICK_DEFINITION;; 	// Идентификатор автономного управления 0 bit [0 - ручное, 1 - автономное]
+		CAN_BASKET_RC_SPEED_ENGINE[5] = 0xFF;																																																// Игнорирования препятствия			1 bit [0 - блокировавка, 1 - игнор]
 		CAN_BASKET_RC_SPEED_ENGINE[6] = 0x00;
 		CAN_BASKET_RC_SPEED_ENGINE[7] = 0x01;
-
 	}
 }
-
+u8 btn_cnt = 0;
+time_t joy_time = 0;
+time_t joy_btn_time = 0;
 void STOP_MOVING(void)
 {
 	CAN_BASKET_RC_DRIVING[0] = 0;
@@ -1818,7 +1973,7 @@ void STOP_MOVING(void)
 	CAN_BASKET_RC_DIR[5] = 0;
 	CAN_BASKET_RC_DIR[6] = 0;
 	CAN_BASKET_RC_DIR[7] = 0xFF;
-	
+
 	SPEED_ENGINE = 0;
 	CAN_BASKET_RC_SPEED_ENGINE[0] = 0xFF;
 	CAN_BASKET_RC_SPEED_ENGINE[1] = 0xFF;
@@ -3003,6 +3158,9 @@ void StartmyControlTask(void *argument)
 											coordRoute[i].latitude = 0;
 											coordRoute[i].longitude = 0;
 										}
+										
+										Navesnoe_ready = 0;
+										Navesnoe_step = 0;
 
 																				
 										MODE_CONTROL = IDLE_MODE;

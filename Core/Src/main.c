@@ -1859,7 +1859,8 @@ void run_gps_drive(void)  // Функция работы автоматичес�
 	{
 		switch(Navesnoe_step)
 		{
-			case 0: right_btn = 0x10;
+			case 0: 
+							right_btn = 0x10;
 							Navesnoe_step++;
 							timeout_navesnoe = xTaskGetTickCount();
 			break;
@@ -1899,9 +1900,10 @@ void run_gps_drive(void)  // Функция работы автоматичес�
 			break;
 							
 			case 5:
+			if (xTaskGetTickCount() - timeout_navesnoe > 1000)
+				right_btn = 0x00;
 			if (xTaskGetTickCount() - timeout_navesnoe > 5000)
 			{
-				right_btn = 0x00;
 				Navesnoe_step++;
 				timeout_navesnoe = xTaskGetTickCount();
 			}

@@ -1900,13 +1900,13 @@ void run_gps_drive(void)  // Функция работы автоматичес�
 			break;
 							
 			case 5:
-			if (xTaskGetTickCount() - timeout_navesnoe > 1000)
-				right_btn = 0x00;
-			if (xTaskGetTickCount() - timeout_navesnoe > 5000)
-			{
-				Navesnoe_step++;
-				timeout_navesnoe = xTaskGetTickCount();
-			}
+							if (xTaskGetTickCount() - timeout_navesnoe > 1000)
+								right_btn = 0x00;
+							if (xTaskGetTickCount() - timeout_navesnoe > 5000)
+							{
+								Navesnoe_step++;
+								timeout_navesnoe = xTaskGetTickCount();
+							}
 			break;
 							
 			case 6:
